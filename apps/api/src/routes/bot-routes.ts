@@ -7,9 +7,9 @@ import {
   updateBotSchema,
 } from "@nexu/shared";
 import { createId } from "@paralleldrive/cuid2";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { bots, gatewayPools } from "../db/schema/index.js";
+import { bots, gatewayAssignments, gatewayPools } from "../db/schema/index.js";
 
 import type { AppBindings } from "../types.js";
 
@@ -222,6 +222,15 @@ export function registerBotRoutes(app: OpenAPIHono<AppBindings>) {
       })
       .run();
 
+    db.insert(gatewayAssignments)
+      .values({
+        id: createId(),
+        botId,
+        poolId,
+        assignedAt: now,
+      })
+      .run();
+
     const bot = db.select().from(bots).where(eq(bots.id, botId)).get();
     if (!bot) {
       throw new Error("Failed to create bot");
@@ -235,16 +244,15 @@ export function registerBotRoutes(app: OpenAPIHono<AppBindings>) {
     const result = db
       .select()
       .from(bots)
-      .where(and(eq(bots.userId, userId), eq(bots.status, "active")))
+      .where(
+        and(
+          eq(bots.userId, userId),
+          or(eq(bots.status, "active"), eq(bots.status, "paused")),
+        ),
+      )
       .all();
 
-    const paused = db
-      .select()
-      .from(bots)
-      .where(and(eq(bots.userId, userId), eq(bots.status, "paused")))
-      .all();
-
-    return c.json({ bots: [...result, ...paused].map(formatBot) }, 200);
+    return c.json({ bots: result.map(formatBot) }, 200);
   });
 
   app.openapi(getBotRoute, async (c) => {
@@ -313,6 +321,10 @@ export function registerBotRoutes(app: OpenAPIHono<AppBindings>) {
     if (!bot) {
       return c.json({ message: `Bot ${botId} not found` }, 404);
     }
+
+    db.delete(gatewayAssignments)
+      .where(eq(gatewayAssignments.botId, botId))
+      .run();
 
     db.update(bots)
       .set({ status: "deleted", updatedAt: new Date().toISOString() })

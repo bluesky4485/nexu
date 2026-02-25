@@ -34,18 +34,19 @@ interface ChannelWithBot {
 
 export async function generatePoolConfig(
   db: Database,
-  poolId: string,
+  poolIdOrName: string,
   gatewayToken?: string,
 ): Promise<OpenClawConfig> {
-  const pool = await db
-    .select()
-    .from(gatewayPools)
-    .where(eq(gatewayPools.id, poolId))
-    .get();
+  // Try lookup by id first, fall back to poolName
+  const pool =
+    db.select().from(gatewayPools).where(eq(gatewayPools.id, poolIdOrName)).get() ??
+    db.select().from(gatewayPools).where(eq(gatewayPools.poolName, poolIdOrName)).get();
 
   if (!pool) {
-    throw new Error(`Pool ${poolId} not found`);
+    throw new Error(`Pool ${poolIdOrName} not found`);
   }
+
+  const poolId = pool.id;
 
   const poolBots = await db
     .select()

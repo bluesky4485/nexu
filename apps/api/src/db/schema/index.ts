@@ -98,6 +98,32 @@ export const gatewayAssignments = sqliteTable("gateway_assignments", {
     .$defaultFn(() => new Date().toISOString()),
 });
 
+export const users = sqliteTable("users", {
+  pk: integer("pk").primaryKey({ autoIncrement: true }),
+  id: text("id").notNull().unique(),
+  authUserId: text("auth_user_id").notNull().unique(),
+  plan: text("plan").default("free"),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
+
+export const usageMetrics = sqliteTable("usage_metrics", {
+  pk: integer("pk").primaryKey({ autoIncrement: true }),
+  id: text("id").notNull().unique(),
+  botId: text("bot_id").notNull(),
+  periodStart: text("period_start").notNull(),
+  periodEnd: text("period_end").notNull(),
+  messageCount: integer("message_count").default(0),
+  tokenCount: integer("token_count").default(0),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
+
 export const webhookRoutes = sqliteTable(
   "webhook_routes",
   {

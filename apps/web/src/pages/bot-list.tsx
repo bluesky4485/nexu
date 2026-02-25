@@ -14,8 +14,15 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../lib/api-client";
-import type { Bot } from "../lib/api-client";
+import "../lib/api";
+import {
+  deleteV1BotsByBotId,
+  getV1Bots,
+  postV1Bots,
+} from "../../lib/api/sdk.gen";
+import type { GetV1BotsResponse } from "../../lib/api/types.gen";
+
+type Bot = GetV1BotsResponse["bots"][number];
 
 export function BotListPage() {
   const queryClient = useQueryClient();
@@ -24,16 +31,23 @@ export function BotListPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["bots"],
-    queryFn: () => api.bots.list(),
+    queryFn: async () => {
+      const { data } = await getV1Bots();
+      return data;
+    },
   });
 
   const createMutation = useMutation({
-    mutationFn: (values: {
+    mutationFn: async (values: {
       name: string;
       slug: string;
       systemPrompt?: string;
       modelId?: string;
-    }) => api.bots.create(values),
+    }) => {
+      const { data, error } = await postV1Bots({ body: values });
+      if (error) throw new Error(error.message);
+      return data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bots"] });
       setCreateOpen(false);
@@ -46,7 +60,13 @@ export function BotListPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (botId: string) => api.bots.delete(botId),
+    mutationFn: async (botId: string) => {
+      const { data, error } = await deleteV1BotsByBotId({
+        path: { botId },
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bots"] });
       message.success("Bot deleted");

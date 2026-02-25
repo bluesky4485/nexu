@@ -24,8 +24,19 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api } from "../lib/api-client";
-import type { Channel } from "../lib/api-client";
+import "../lib/api";
+import {
+  deleteV1BotsByBotIdChannelsByChannelId,
+  getApiInternalPoolsByPoolIdConfig,
+  getV1BotsByBotId,
+  getV1BotsByBotIdChannels,
+  postV1BotsByBotIdChannelsSlackConnect,
+  postV1BotsByBotIdPause,
+  postV1BotsByBotIdResume,
+} from "../../lib/api/sdk.gen";
+import type { GetV1BotsByBotIdChannelsResponse } from "../../lib/api/types.gen";
+
+type Channel = GetV1BotsByBotIdChannelsResponse["channels"][number];
 
 export function BotDetailPage() {
   const { botId = "" } = useParams<{ botId: string }>();
@@ -38,18 +49,34 @@ export function BotDetailPage() {
 
   const { data: bot, isLoading: botLoading } = useQuery({
     queryKey: ["bot", botId],
-    queryFn: () => api.bots.get(botId),
+    queryFn: async () => {
+      const { data, error } = await getV1BotsByBotId({ path: { botId } });
+      if (error) throw new Error(error.message);
+      return data;
+    },
     enabled: botId.length > 0,
   });
 
   const { data: channelsData, isLoading: channelsLoading } = useQuery({
     queryKey: ["channels", botId],
-    queryFn: () => api.channels.list(botId),
+    queryFn: async () => {
+      const { data, error } = await getV1BotsByBotIdChannels({
+        path: { botId },
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
     enabled: botId.length > 0,
   });
 
   const pauseMutation = useMutation({
-    mutationFn: () => api.bots.pause(botId),
+    mutationFn: async () => {
+      const { data, error } = await postV1BotsByBotIdPause({
+        path: { botId },
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bot", botId] });
       message.success("Bot paused");
@@ -57,7 +84,13 @@ export function BotDetailPage() {
   });
 
   const resumeMutation = useMutation({
-    mutationFn: () => api.bots.resume(botId),
+    mutationFn: async () => {
+      const { data, error } = await postV1BotsByBotIdResume({
+        path: { botId },
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bot", botId] });
       message.success("Bot resumed");
@@ -65,12 +98,19 @@ export function BotDetailPage() {
   });
 
   const connectSlackMutation = useMutation({
-    mutationFn: (values: {
+    mutationFn: async (values: {
       botToken: string;
       signingSecret: string;
       teamId: string;
       teamName?: string;
-    }) => api.channels.connectSlack(botId, values),
+    }) => {
+      const { data, error } = await postV1BotsByBotIdChannelsSlackConnect({
+        path: { botId },
+        body: values,
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["channels", botId] });
       setSlackModalOpen(false);
@@ -83,8 +123,13 @@ export function BotDetailPage() {
   });
 
   const disconnectMutation = useMutation({
-    mutationFn: (channelId: string) =>
-      api.channels.disconnect(botId, channelId),
+    mutationFn: async (channelId: string) => {
+      const { data, error } = await deleteV1BotsByBotIdChannelsByChannelId({
+        path: { botId, channelId },
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["channels", botId] });
       message.success("Channel disconnected");
@@ -94,8 +139,11 @@ export function BotDetailPage() {
   const handlePreviewConfig = async () => {
     setConfigLoading(true);
     try {
-      const config = await api.config.getPoolConfig("default");
-      setConfigJson(JSON.stringify(config, null, 2));
+      const { data, error } = await getApiInternalPoolsByPoolIdConfig({
+        path: { poolId: "default" },
+      });
+      if (error) throw new Error(error.message);
+      setConfigJson(JSON.stringify(data, null, 2));
     } catch {
       message.error("Failed to load config");
     } finally {

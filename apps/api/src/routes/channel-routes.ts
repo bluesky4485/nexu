@@ -8,7 +8,12 @@ import {
 import { createId } from "@paralleldrive/cuid2";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { botChannels, bots, channelCredentials } from "../db/schema/index.js";
+import {
+  botChannels,
+  bots,
+  channelCredentials,
+  webhookRoutes,
+} from "../db/schema/index.js";
 import { encrypt } from "../lib/crypto.js";
 
 import type { AppBindings } from "../types.js";
@@ -204,6 +209,19 @@ export function registerChannelRoutes(app: OpenAPIHono<AppBindings>) {
       })
       .run();
 
+    if (bot.poolId) {
+      db.insert(webhookRoutes)
+        .values({
+          id: createId(),
+          channelType: "slack",
+          externalId: input.teamId,
+          poolId: bot.poolId,
+          botChannelId: channelId,
+          createdAt: now,
+        })
+        .run();
+    }
+
     const channel = db
       .select()
       .from(botChannels)
@@ -263,6 +281,10 @@ export function registerChannelRoutes(app: OpenAPIHono<AppBindings>) {
     if (!channel) {
       return c.json({ message: `Channel ${channelId} not found` }, 404);
     }
+
+    db.delete(webhookRoutes)
+      .where(eq(webhookRoutes.botChannelId, channelId))
+      .run();
 
     db.update(botChannels)
       .set({ status: "disconnected", updatedAt: new Date().toISOString() })

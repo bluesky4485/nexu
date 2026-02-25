@@ -345,6 +345,14 @@ describe("Config Generator", () => {
     expect(defaultAgents).toHaveLength(1);
   });
 
+  it("should resolve pool by name when id doesn't match", async () => {
+    seedData(db);
+    const config = await generatePoolConfig(db, "default");
+
+    expect(config.agents.list).toHaveLength(2);
+    expect(config.agents.list[0]?.id).toBe("acme-bot");
+  });
+
   it("should use custom gateway token", async () => {
     seedData(db);
     const config = await generatePoolConfig(db, "pool-1", "custom-token");
