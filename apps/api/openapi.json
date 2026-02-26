@@ -9,6 +9,692 @@
     "parameters": {}
   },
   "paths": {
+    "/api/internal/artifacts": {
+      "post": {
+        "tags": [
+          "Artifacts (Internal)"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "botId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "sessionKey": {
+                    "type": "string"
+                  },
+                  "channelType": {
+                    "type": "string"
+                  },
+                  "channelId": {
+                    "type": "string"
+                  },
+                  "artifactType": {
+                    "type": "string",
+                    "enum": [
+                      "code",
+                      "content",
+                      "deployment"
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "coding",
+                      "content"
+                    ]
+                  },
+                  "contentType": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "building",
+                      "live",
+                      "failed",
+                      "stopped"
+                    ]
+                  },
+                  "previewUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "deployTarget": {
+                    "type": "string"
+                  },
+                  "linesOfCode": {
+                    "type": "integer"
+                  },
+                  "fileCount": {
+                    "type": "integer"
+                  },
+                  "durationMs": {
+                    "type": "integer"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  }
+                },
+                "required": [
+                  "botId",
+                  "title"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Artifact created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "botId": {
+                      "type": "string"
+                    },
+                    "sessionKey": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "channelType": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "channelId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "artifactType": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "source": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "contentType": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "previewUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "deployTarget": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "linesOfCode": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "fileCount": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "durationMs": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "nullable": true,
+                      "additionalProperties": {
+                        "nullable": true
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "botId",
+                    "sessionKey",
+                    "channelType",
+                    "channelId",
+                    "title",
+                    "artifactType",
+                    "source",
+                    "contentType",
+                    "status",
+                    "previewUrl",
+                    "deployTarget",
+                    "linesOfCode",
+                    "fileCount",
+                    "durationMs",
+                    "metadata",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/internal/artifacts/{id}": {
+      "patch": {
+        "tags": [
+          "Artifacts (Internal)"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "building",
+                      "live",
+                      "failed",
+                      "stopped"
+                    ]
+                  },
+                  "previewUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "deployTarget": {
+                    "type": "string"
+                  },
+                  "linesOfCode": {
+                    "type": "integer"
+                  },
+                  "fileCount": {
+                    "type": "integer"
+                  },
+                  "durationMs": {
+                    "type": "integer"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Artifact updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "botId": {
+                      "type": "string"
+                    },
+                    "sessionKey": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "channelType": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "channelId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "artifactType": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "source": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "contentType": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "previewUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "deployTarget": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "linesOfCode": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "fileCount": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "durationMs": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "nullable": true,
+                      "additionalProperties": {
+                        "nullable": true
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "botId",
+                    "sessionKey",
+                    "channelType",
+                    "channelId",
+                    "title",
+                    "artifactType",
+                    "source",
+                    "contentType",
+                    "status",
+                    "previewUrl",
+                    "deployTarget",
+                    "linesOfCode",
+                    "fileCount",
+                    "durationMs",
+                    "metadata",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Artifact not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/internal/sessions": {
+      "post": {
+        "tags": [
+          "Sessions (Internal)"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "botId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "sessionKey": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "channelType": {
+                    "type": "string"
+                  },
+                  "channelId": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "ended"
+                    ]
+                  },
+                  "messageCount": {
+                    "type": "integer"
+                  },
+                  "lastMessageAt": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  }
+                },
+                "required": [
+                  "botId",
+                  "sessionKey",
+                  "title"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Session created or updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "botId": {
+                      "type": "string"
+                    },
+                    "sessionKey": {
+                      "type": "string"
+                    },
+                    "channelType": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "channelId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "messageCount": {
+                      "type": "number"
+                    },
+                    "lastMessageAt": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "nullable": true,
+                      "additionalProperties": {
+                        "nullable": true
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "botId",
+                    "sessionKey",
+                    "channelType",
+                    "channelId",
+                    "title",
+                    "status",
+                    "messageCount",
+                    "lastMessageAt",
+                    "metadata",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/internal/sessions/{id}": {
+      "patch": {
+        "tags": [
+          "Sessions (Internal)"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "ended"
+                    ]
+                  },
+                  "messageCount": {
+                    "type": "integer"
+                  },
+                  "lastMessageAt": {
+                    "type": "string"
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "botId": {
+                      "type": "string"
+                    },
+                    "sessionKey": {
+                      "type": "string"
+                    },
+                    "channelType": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "channelId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "messageCount": {
+                      "type": "number"
+                    },
+                    "lastMessageAt": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "nullable": true,
+                      "additionalProperties": {
+                        "nullable": true
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "botId",
+                    "sessionKey",
+                    "channelType",
+                    "channelId",
+                    "title",
+                    "status",
+                    "messageCount",
+                    "lastMessageAt",
+                    "metadata",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/bots": {
       "post": {
         "tags": [
@@ -689,20 +1375,10 @@
         }
       }
     },
-    "/v1/bots/{botId}/channels/slack/oauth-url": {
+    "/v1/channels/slack/oauth-url": {
       "get": {
         "tags": [
           "Channels"
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "botId",
-            "in": "path"
-          }
         ],
         "responses": {
           "200": {
@@ -718,24 +1394,6 @@
                   },
                   "required": [
                     "url"
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Bot not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "message"
                   ]
                 }
               }
@@ -762,20 +1420,10 @@
         }
       }
     },
-    "/v1/bots/{botId}/channels/slack/connect": {
+    "/v1/channels/slack/connect": {
       "post": {
         "tags": [
           "Channels"
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "botId",
-            "in": "path"
-          }
         ],
         "requestBody": {
           "content": {
@@ -865,24 +1513,6 @@
               }
             }
           },
-          "404": {
-            "description": "Bot not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "message"
-                  ]
-                }
-              }
-            }
-          },
           "409": {
             "description": "Slack already connected",
             "content": {
@@ -904,20 +1534,10 @@
         }
       }
     },
-    "/v1/bots/{botId}/channels": {
+    "/v1/channels": {
       "get": {
         "tags": [
           "Channels"
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "botId",
-            "in": "path"
-          }
         ],
         "responses": {
           "200": {
@@ -986,42 +1606,16 @@
                 }
               }
             }
-          },
-          "404": {
-            "description": "Bot not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "message"
-                  ]
-                }
-              }
-            }
           }
         }
       }
     },
-    "/v1/bots/{botId}/channels/{channelId}": {
+    "/v1/channels/{channelId}": {
       "delete": {
         "tags": [
           "Channels"
         ],
         "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "botId",
-            "in": "path"
-          },
           {
             "schema": {
               "type": "string"
@@ -1071,20 +1665,12 @@
         }
       }
     },
-    "/v1/bots/{botId}/channels/{channelId}/status": {
+    "/v1/channels/{channelId}/status": {
       "get": {
         "tags": [
           "Channels"
         ],
         "parameters": [
-          {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
-            "name": "botId",
-            "in": "path"
-          },
           {
             "schema": {
               "type": "string"
@@ -1354,6 +1940,20 @@
                           "required": [
                             "mode"
                           ]
+                        },
+                        "controlUi": {
+                          "type": "object",
+                          "properties": {
+                            "allowedOrigins": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "dangerouslyAllowHostHeaderOriginFallback": {
+                              "type": "boolean"
+                            }
+                          }
                         }
                       },
                       "required": [
@@ -1974,6 +2574,20 @@
                               "required": [
                                 "mode"
                               ]
+                            },
+                            "controlUi": {
+                              "type": "object",
+                              "properties": {
+                                "allowedOrigins": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "dangerouslyAllowHostHeaderOriginFallback": {
+                                  "type": "boolean"
+                                }
+                              }
                             }
                           },
                           "required": [
@@ -2466,6 +3080,20 @@
                               "required": [
                                 "mode"
                               ]
+                            },
+                            "controlUi": {
+                              "type": "object",
+                              "properties": {
+                                "allowedOrigins": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "dangerouslyAllowHostHeaderOriginFallback": {
+                                  "type": "boolean"
+                                }
+                              }
                             }
                           },
                           "required": [
@@ -2834,6 +3462,692 @@
           },
           "404": {
             "description": "Config version not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/artifacts": {
+      "get": {
+        "tags": [
+          "Artifacts"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "botId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "sessionKey",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "source",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "artifacts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "botId": {
+                            "type": "string"
+                          },
+                          "sessionKey": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "channelType": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "channelId": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "artifactType": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "source": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "contentType": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "previewUrl": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "deployTarget": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "linesOfCode": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "fileCount": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "durationMs": {
+                            "type": "number",
+                            "nullable": true
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "nullable": true,
+                            "additionalProperties": {
+                              "nullable": true
+                            }
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "botId",
+                          "sessionKey",
+                          "channelType",
+                          "channelId",
+                          "title",
+                          "artifactType",
+                          "source",
+                          "contentType",
+                          "status",
+                          "previewUrl",
+                          "deployTarget",
+                          "linesOfCode",
+                          "fileCount",
+                          "durationMs",
+                          "metadata",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "limit": {
+                      "type": "number"
+                    },
+                    "offset": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "artifacts",
+                    "total",
+                    "limit",
+                    "offset"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/artifacts/stats": {
+      "get": {
+        "tags": [
+          "Artifacts"
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact statistics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "totalArtifacts": {
+                      "type": "number"
+                    },
+                    "liveCount": {
+                      "type": "number"
+                    },
+                    "buildingCount": {
+                      "type": "number"
+                    },
+                    "failedCount": {
+                      "type": "number"
+                    },
+                    "codingCount": {
+                      "type": "number"
+                    },
+                    "contentCount": {
+                      "type": "number"
+                    },
+                    "totalLinesOfCode": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "totalArtifacts",
+                    "liveCount",
+                    "buildingCount",
+                    "failedCount",
+                    "codingCount",
+                    "contentCount",
+                    "totalLinesOfCode"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/artifacts/{id}": {
+      "get": {
+        "tags": [
+          "Artifacts"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "botId": {
+                      "type": "string"
+                    },
+                    "sessionKey": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "channelType": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "channelId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "artifactType": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "source": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "contentType": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "previewUrl": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "deployTarget": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "linesOfCode": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "fileCount": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "durationMs": {
+                      "type": "number",
+                      "nullable": true
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "nullable": true,
+                      "additionalProperties": {
+                        "nullable": true
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "botId",
+                    "sessionKey",
+                    "channelType",
+                    "channelId",
+                    "title",
+                    "artifactType",
+                    "source",
+                    "contentType",
+                    "status",
+                    "previewUrl",
+                    "deployTarget",
+                    "linesOfCode",
+                    "fileCount",
+                    "durationMs",
+                    "metadata",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Artifact not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Artifacts"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Artifact deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Artifact not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "botId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "channelType",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0,
+              "default": 0
+            },
+            "required": false,
+            "name": "offset",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "botId": {
+                            "type": "string"
+                          },
+                          "sessionKey": {
+                            "type": "string"
+                          },
+                          "channelType": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "channelId": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "messageCount": {
+                            "type": "number"
+                          },
+                          "lastMessageAt": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "metadata": {
+                            "type": "object",
+                            "nullable": true,
+                            "additionalProperties": {
+                              "nullable": true
+                            }
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "updatedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "botId",
+                          "sessionKey",
+                          "channelType",
+                          "channelId",
+                          "title",
+                          "status",
+                          "messageCount",
+                          "lastMessageAt",
+                          "metadata",
+                          "createdAt",
+                          "updatedAt"
+                        ]
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "limit": {
+                      "type": "number"
+                    },
+                    "offset": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "sessions",
+                    "total",
+                    "limit",
+                    "offset"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/sessions/{id}": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "botId": {
+                      "type": "string"
+                    },
+                    "sessionKey": {
+                      "type": "string"
+                    },
+                    "channelType": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "channelId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "messageCount": {
+                      "type": "number"
+                    },
+                    "lastMessageAt": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "nullable": true,
+                      "additionalProperties": {
+                        "nullable": true
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "botId",
+                    "sessionKey",
+                    "channelType",
+                    "channelId",
+                    "title",
+                    "status",
+                    "messageCount",
+                    "lastMessageAt",
+                    "metadata",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
             "content": {
               "application/json": {
                 "schema": {

@@ -7,7 +7,7 @@ import {
   slackOAuthUrlResponseSchema,
 } from "@nexu/shared";
 import { createId } from "@paralleldrive/cuid2";
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, lt, or } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
   botChannels,
@@ -16,6 +16,7 @@ import {
   oauthStates,
   webhookRoutes,
 } from "../db/schema/index.js";
+import { findOrCreateDefaultBot } from "../lib/bot-helpers.js";
 import { encrypt } from "../lib/crypto.js";
 import { publishPoolConfigSnapshot } from "../services/runtime/pool-config-service.js";
 
@@ -29,12 +30,7 @@ const errorResponseSchema = z.object({
   message: z.string(),
 });
 
-const botIdParam = z.object({
-  botId: z.string(),
-});
-
 const channelIdParam = z.object({
-  botId: z.string(),
   channelId: z.string(),
 });
 
@@ -122,50 +118,19 @@ const SLACK_BOT_SCOPES = [
 ].join(",");
 
 // ---------------------------------------------------------------------------
-// OpenAPI route definitions
+// OpenAPI route definitions (user-scoped, no botId param)
 // ---------------------------------------------------------------------------
-
-const connectSlackRoute = createRoute({
-  method: "post",
-  path: "/v1/bots/{botId}/channels/slack/connect",
-  tags: ["Channels"],
-  request: {
-    params: botIdParam,
-    body: { content: { "application/json": { schema: connectSlackSchema } } },
-  },
-  responses: {
-    200: {
-      content: { "application/json": { schema: channelResponseSchema } },
-      description: "Slack channel connected",
-    },
-    404: {
-      content: { "application/json": { schema: errorResponseSchema } },
-      description: "Bot not found",
-    },
-    409: {
-      content: { "application/json": { schema: errorResponseSchema } },
-      description: "Slack already connected",
-    },
-  },
-});
 
 const slackOAuthUrlRoute = createRoute({
   method: "get",
-  path: "/v1/bots/{botId}/channels/slack/oauth-url",
+  path: "/v1/channels/slack/oauth-url",
   tags: ["Channels"],
-  request: {
-    params: botIdParam,
-  },
   responses: {
     200: {
       content: {
         "application/json": { schema: slackOAuthUrlResponseSchema },
       },
       description: "Slack OAuth authorization URL",
-    },
-    404: {
-      content: { "application/json": { schema: errorResponseSchema } },
-      description: "Bot not found",
     },
     500: {
       content: { "application/json": { schema: errorResponseSchema } },
@@ -174,28 +139,40 @@ const slackOAuthUrlRoute = createRoute({
   },
 });
 
-const listChannelsRoute = createRoute({
-  method: "get",
-  path: "/v1/bots/{botId}/channels",
+const connectSlackRoute = createRoute({
+  method: "post",
+  path: "/v1/channels/slack/connect",
   tags: ["Channels"],
   request: {
-    params: botIdParam,
+    body: { content: { "application/json": { schema: connectSlackSchema } } },
   },
+  responses: {
+    200: {
+      content: { "application/json": { schema: channelResponseSchema } },
+      description: "Slack channel connected",
+    },
+    409: {
+      content: { "application/json": { schema: errorResponseSchema } },
+      description: "Slack already connected",
+    },
+  },
+});
+
+const listChannelsRoute = createRoute({
+  method: "get",
+  path: "/v1/channels",
+  tags: ["Channels"],
   responses: {
     200: {
       content: { "application/json": { schema: channelListResponseSchema } },
       description: "Channel list",
-    },
-    404: {
-      content: { "application/json": { schema: errorResponseSchema } },
-      description: "Bot not found",
     },
   },
 });
 
 const disconnectChannelRoute = createRoute({
   method: "delete",
-  path: "/v1/bots/{botId}/channels/{channelId}",
+  path: "/v1/channels/{channelId}",
   tags: ["Channels"],
   request: {
     params: channelIdParam,
@@ -216,7 +193,7 @@ const disconnectChannelRoute = createRoute({
 
 const channelStatusRoute = createRoute({
   method: "get",
-  path: "/v1/bots/{botId}/channels/{channelId}/status",
+  path: "/v1/channels/{channelId}/status",
   tags: ["Channels"],
   request: {
     params: channelIdParam,
@@ -238,9 +215,8 @@ const channelStatusRoute = createRoute({
 // ---------------------------------------------------------------------------
 
 export function registerChannelRoutes(app: OpenAPIHono<AppBindings>) {
-  // -- Slack OAuth URL generation (authenticated) --
+  // -- Slack OAuth URL generation (authenticated, no botId needed) --
   app.openapi(slackOAuthUrlRoute, async (c) => {
-    const { botId } = c.req.valid("param");
     const userId = c.get("userId");
 
     const clientId = process.env.SLACK_CLIENT_ID;
@@ -251,23 +227,13 @@ export function registerChannelRoutes(app: OpenAPIHono<AppBindings>) {
       );
     }
 
-    const [bot] = await db
-      .select()
-      .from(bots)
-      .where(and(eq(bots.id, botId), eq(bots.userId, userId)));
-
-    if (!bot) {
-      return c.json({ message: `Bot ${botId} not found` }, 404);
-    }
-
-    // Generate CSRF state token (10 min TTL)
+    // Generate CSRF state token (10 min TTL) — botId is null
     const nonce = createId();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     await db.insert(oauthStates).values({
       id: createId(),
       state: nonce,
-      botId,
       userId,
       expiresAt,
     });
@@ -283,18 +249,11 @@ export function registerChannelRoutes(app: OpenAPIHono<AppBindings>) {
 
   // -- Manual Slack connect (authenticated) --
   app.openapi(connectSlackRoute, async (c) => {
-    const { botId } = c.req.valid("param");
     const userId = c.get("userId");
     const input = c.req.valid("json");
 
-    const [bot] = await db
-      .select()
-      .from(bots)
-      .where(and(eq(bots.id, botId), eq(bots.userId, userId)));
-
-    if (!bot) {
-      return c.json({ message: `Bot ${botId} not found` }, 404);
-    }
+    const bot = await findOrCreateDefaultBot(userId);
+    const botId = bot.id;
 
     const accountId = `slack-${input.teamId}`;
 
@@ -379,7 +338,7 @@ export function registerChannelRoutes(app: OpenAPIHono<AppBindings>) {
       });
     }
 
-    await publishSnapshotSafely(bot.poolId, botId);
+    await publishSnapshotSafely(bot.poolId, bot.id);
 
     const [channel] = await db
       .select()
@@ -395,44 +354,55 @@ export function registerChannelRoutes(app: OpenAPIHono<AppBindings>) {
 
   // -- List channels --
   app.openapi(listChannelsRoute, async (c) => {
-    const { botId } = c.req.valid("param");
     const userId = c.get("userId");
 
+    // Find user's bot; if none exists, return empty list
     const [bot] = await db
       .select()
       .from(bots)
-      .where(and(eq(bots.id, botId), eq(bots.userId, userId)));
+      .where(
+        and(
+          eq(bots.userId, userId),
+          or(eq(bots.status, "active"), eq(bots.status, "paused")),
+        ),
+      );
 
     if (!bot) {
-      return c.json({ message: `Bot ${botId} not found` }, 404);
+      return c.json({ channels: [] }, 200);
     }
 
     const channels = await db
       .select()
       .from(botChannels)
-      .where(eq(botChannels.botId, botId));
+      .where(eq(botChannels.botId, bot.id));
 
     return c.json({ channels: channels.map(formatChannel) }, 200);
   });
 
   // -- Disconnect channel --
   app.openapi(disconnectChannelRoute, async (c) => {
-    const { botId, channelId } = c.req.valid("param");
+    const { channelId } = c.req.valid("param");
     const userId = c.get("userId");
 
+    // Find user's bot
     const [bot] = await db
       .select()
       .from(bots)
-      .where(and(eq(bots.id, botId), eq(bots.userId, userId)));
+      .where(
+        and(
+          eq(bots.userId, userId),
+          or(eq(bots.status, "active"), eq(bots.status, "paused")),
+        ),
+      );
 
     if (!bot) {
-      return c.json({ message: `Bot ${botId} not found` }, 404);
+      return c.json({ message: "Channel not found" }, 404);
     }
 
     const [channel] = await db
       .select()
       .from(botChannels)
-      .where(and(eq(botChannels.id, channelId), eq(botChannels.botId, botId)));
+      .where(and(eq(botChannels.id, channelId), eq(botChannels.botId, bot.id)));
 
     if (!channel) {
       return c.json({ message: `Channel ${channelId} not found` }, 404);
@@ -448,29 +418,35 @@ export function registerChannelRoutes(app: OpenAPIHono<AppBindings>) {
 
     await db.delete(botChannels).where(eq(botChannels.id, channelId));
 
-    await publishSnapshotSafely(bot.poolId, botId);
+    await publishSnapshotSafely(bot.poolId, bot.id);
 
     return c.json({ success: true }, 200);
   });
 
   // -- Channel status --
   app.openapi(channelStatusRoute, async (c) => {
-    const { botId, channelId } = c.req.valid("param");
+    const { channelId } = c.req.valid("param");
     const userId = c.get("userId");
 
+    // Find user's bot
     const [bot] = await db
       .select()
       .from(bots)
-      .where(and(eq(bots.id, botId), eq(bots.userId, userId)));
+      .where(
+        and(
+          eq(bots.userId, userId),
+          or(eq(bots.status, "active"), eq(bots.status, "paused")),
+        ),
+      );
 
     if (!bot) {
-      return c.json({ message: `Bot ${botId} not found` }, 404);
+      return c.json({ message: "Channel not found" }, 404);
     }
 
     const [channel] = await db
       .select()
       .from(botChannels)
-      .where(and(eq(botChannels.id, channelId), eq(botChannels.botId, botId)));
+      .where(and(eq(botChannels.id, channelId), eq(botChannels.botId, bot.id)));
 
     if (!channel) {
       return c.json({ message: `Channel ${channelId} not found` }, 404);
@@ -538,7 +514,7 @@ export function registerSlackOAuthCallback(app: OpenAPIHono<AppBindings>) {
       .set({ usedAt: new Date().toISOString() })
       .where(eq(oauthStates.id, stateRow.id));
 
-    const { botId, userId } = stateRow;
+    const { userId } = stateRow;
 
     // --- 4. Exchange code for token with Slack ---
     const clientId = process.env.SLACK_CLIENT_ID;
@@ -586,15 +562,9 @@ export function registerSlackOAuthCallback(app: OpenAPIHono<AppBindings>) {
 
     const accountId = `slack-${teamId}`;
 
-    // --- 5. Verify bot still exists and belongs to user ---
-    const [bot] = await db
-      .select()
-      .from(bots)
-      .where(and(eq(bots.id, botId), eq(bots.userId, userId)));
-
-    if (!bot) {
-      return redirectWithError("Bot no longer exists");
-    }
+    // --- 5. Find or create the user's default bot ---
+    const bot = await findOrCreateDefaultBot(userId);
+    const botId = bot.id;
 
     // --- 6. Create or update the channel connection ---
     const [existing] = await db
