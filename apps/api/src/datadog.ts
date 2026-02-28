@@ -1,5 +1,9 @@
 import "dotenv/config";
 
+if (!process.env.DD_VERSION && process.env.COMMIT_HASH) {
+  process.env.DD_VERSION = process.env.COMMIT_HASH;
+}
+
 if (process.env.DD_ENV) {
   try {
     // @ts-expect-error dd-trace lacks ESM exports map
