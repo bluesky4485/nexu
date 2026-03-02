@@ -11,6 +11,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { artifacts, bots } from "../db/schema/index.js";
+import { ServiceError } from "../lib/error.js";
 
 import type { AppBindings } from "../types.js";
 
@@ -147,7 +148,11 @@ export function registerArtifactInternalRoutes(app: OpenAPIHono<AppBindings>) {
       .where(eq(artifacts.id, id));
 
     if (!created) {
-      throw new Error("Artifact insert failed");
+      throw ServiceError.from("artifact-routes", {
+        code: "artifact_insert_failed",
+        artifact_id: id,
+        bot_id: input.botId,
+      });
     }
 
     return c.json(formatArtifact(created), 201);
@@ -196,7 +201,10 @@ export function registerArtifactInternalRoutes(app: OpenAPIHono<AppBindings>) {
       .where(eq(artifacts.id, id));
 
     if (!updated) {
-      throw new Error("Artifact update failed");
+      throw ServiceError.from("artifact-routes", {
+        code: "artifact_update_failed",
+        artifact_id: id,
+      });
     }
 
     return c.json(formatArtifact(updated), 200);
