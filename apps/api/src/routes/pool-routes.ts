@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createRoute, z } from "@hono/zod-openapi";
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import {
@@ -8,10 +9,12 @@ import {
   runtimePoolRegisterResponseSchema,
   runtimePoolRegisterSchema,
 } from "@nexu/shared";
+import { createId } from "@paralleldrive/cuid2";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { bots, gatewayPools } from "../db/schema/index.js";
+import { bots, gatewayPools, poolSecrets } from "../db/schema/index.js";
 import { generatePoolConfig } from "../lib/config-generator.js";
+import { decrypt, encrypt } from "../lib/crypto.js";
 import { requireInternalToken } from "../middleware/internal-auth.js";
 import {
   getPoolConfigSnapshotByVersion,
@@ -146,6 +149,66 @@ async function buildAgentMeta(
   return agentMeta;
 }
 
+async function buildPoolSecrets(
+  poolId: string,
+): Promise<{ secrets: Record<string, string>; secretsHash: string }> {
+  const rows = await db
+    .select({
+      secretName: poolSecrets.secretName,
+      encryptedValue: poolSecrets.encryptedValue,
+    })
+    .from(poolSecrets)
+    .where(eq(poolSecrets.poolId, poolId))
+    .orderBy(poolSecrets.secretName);
+
+  const secrets: Record<string, string> = {};
+  for (const row of rows) {
+    try {
+      secrets[row.secretName] = decrypt(row.encryptedValue);
+    } catch {
+      // Skip secrets that fail to decrypt
+    }
+  }
+
+  const hashInput = rows
+    .map((r) => `${r.secretName}:${r.encryptedValue}`)
+    .join("\n");
+  const secretsHash = createHash("sha256").update(hashInput).digest("hex");
+  return { secrets, secretsHash };
+}
+
+const putPoolSecretsRoute = createRoute({
+  method: "put",
+  path: "/api/internal/pools/{poolId}/secrets",
+  tags: ["Internal"],
+  request: {
+    params: poolIdParam,
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            secrets: z.record(z.string()),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: {
+        "application/json": {
+          schema: z.object({ ok: z.boolean(), count: z.number() }),
+        },
+      },
+      description: "Secrets stored",
+    },
+    404: {
+      content: { "application/json": { schema: errorResponseSchema } },
+      description: "Pool not found",
+    },
+  },
+});
+
 export function registerPoolRoutes(app: OpenAPIHono<AppBindings>) {
   app.openapi(getPoolConfigRoute, async (c) => {
     requireInternalToken(c);
@@ -214,6 +277,45 @@ export function registerPoolRoutes(app: OpenAPIHono<AppBindings>) {
     );
   });
 
+  app.openapi(putPoolSecretsRoute, async (c) => {
+    requireInternalToken(c);
+    const { poolId } = c.req.valid("param");
+    const { secrets } = c.req.valid("json");
+
+    const [pool] = await db
+      .select({ id: gatewayPools.id })
+      .from(gatewayPools)
+      .where(eq(gatewayPools.id, poolId))
+      .limit(1);
+
+    if (!pool) {
+      return c.json({ message: `Pool ${poolId} not found` }, 404);
+    }
+
+    const now = new Date().toISOString();
+    let count = 0;
+    for (const [name, value] of Object.entries(secrets)) {
+      const encryptedValue = encrypt(value);
+      await db
+        .insert(poolSecrets)
+        .values({
+          id: createId(),
+          poolId,
+          secretName: name,
+          encryptedValue,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [poolSecrets.poolId, poolSecrets.secretName],
+          set: { encryptedValue, updatedAt: now },
+        });
+      count++;
+    }
+
+    return c.json({ ok: true, count }, 200);
+  });
+
   app.openapi(getPoolConfigLatestRoute, async (c) => {
     requireInternalToken(c);
     const { poolId } = c.req.valid("param");
@@ -230,6 +332,7 @@ export function registerPoolRoutes(app: OpenAPIHono<AppBindings>) {
 
     const snapshot = await publishPoolConfigSnapshot(db, poolId);
     const agentMeta = await buildAgentMeta(poolId);
+    const { secrets, secretsHash } = await buildPoolSecrets(poolId);
     return c.json(
       {
         poolId: snapshot.poolId,
@@ -237,6 +340,8 @@ export function registerPoolRoutes(app: OpenAPIHono<AppBindings>) {
         configHash: snapshot.configHash,
         config: snapshot.config,
         agentMeta,
+        poolSecrets: secrets,
+        secretsHash,
         createdAt: snapshot.createdAt,
       },
       200,
@@ -256,6 +361,7 @@ export function registerPoolRoutes(app: OpenAPIHono<AppBindings>) {
     }
 
     const agentMeta = await buildAgentMeta(poolId);
+    const { secrets, secretsHash } = await buildPoolSecrets(poolId);
     return c.json(
       {
         poolId: snapshot.poolId,
@@ -263,6 +369,8 @@ export function registerPoolRoutes(app: OpenAPIHono<AppBindings>) {
         configHash: snapshot.configHash,
         config: snapshot.config,
         agentMeta,
+        poolSecrets: secrets,
+        secretsHash,
         createdAt: snapshot.createdAt,
       },
       200,

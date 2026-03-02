@@ -291,6 +291,20 @@ export async function migrate(dbUrl?: string) {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed_at TEXT;
   `);
 
+  // Pool secrets
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS pool_secrets (
+      pk SERIAL PRIMARY KEY,
+      id TEXT NOT NULL UNIQUE,
+      pool_id TEXT NOT NULL,
+      secret_name TEXT NOT NULL,
+      encrypted_value TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS pool_secrets_uniq_idx ON pool_secrets(pool_id, secret_name);
+  `);
+
   // Multi-file skills support
   await client.query(`
     ALTER TABLE skills ADD COLUMN IF NOT EXISTS files TEXT NOT NULL DEFAULT '{}';

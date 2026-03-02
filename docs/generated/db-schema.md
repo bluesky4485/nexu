@@ -1,6 +1,6 @@
 # DB Schema (Generated)
 
-Generated from `apps/api/src/db/schema/index.ts`. Regenerate after schema changes.
+> **For AI agents:** This document may be outdated. Always read `apps/api/src/db/schema/index.ts` as the source of truth for all table definitions, columns, defaults, and constraints.
 
 All tables use `pk` (serial auto-increment) as internal primary key and `id` (text, cuid2) as public identifier. No foreign key constraints — application-level joins only.
 

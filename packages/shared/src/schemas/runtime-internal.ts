@@ -30,6 +30,8 @@ export const runtimePoolConfigResponseSchema = z.object({
   configHash: z.string(),
   config: openclawConfigSchema,
   agentMeta: z.record(z.object({ botId: z.string() })).optional(),
+  poolSecrets: z.record(z.string()).optional(),
+  secretsHash: z.string().optional(),
   createdAt: z.string(),
 });
 

@@ -267,6 +267,26 @@ export const artifacts = pgTable("artifacts", {
     .$defaultFn(() => new Date().toISOString()),
 });
 
+export const poolSecrets = pgTable(
+  "pool_secrets",
+  {
+    pk: serial("pk").primaryKey(),
+    id: text("id").notNull().unique(),
+    poolId: text("pool_id").notNull(),
+    secretName: text("secret_name").notNull(),
+    encryptedValue: text("encrypted_value").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (table) => [
+    uniqueIndex("pool_secrets_uniq_idx").on(table.poolId, table.secretName),
+  ],
+);
+
 export const sessions = pgTable(
   "sessions",
   {
