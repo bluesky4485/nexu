@@ -121,7 +121,7 @@ async function clearStaleSessionLocks(): Promise<void> {
   }
 
   if (removed > 0) {
-    log("cleared stale session locks", { count: removed });
+    logger.info({ count: removed }, "cleared stale session locks");
   }
 }
 
@@ -148,7 +148,7 @@ async function rewriteSkillFiles(): Promise<void> {
   }
 
   if (rewritten > 0) {
-    log("rewrote skill files to trigger watcher", { count: rewritten });
+    logger.info({ count: rewritten }, "rewrote skill files to trigger watcher");
   }
 }
 
