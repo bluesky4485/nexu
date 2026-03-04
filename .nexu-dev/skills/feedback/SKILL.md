@@ -31,7 +31,7 @@ The user sends `/feedback <message>` to share feedback, report issues, or make s
 ```bash
 PAYLOAD='{"content":"<ESCAPED_FEEDBACK>","channel":"<CHANNEL_TYPE>","sender":"<SENDER>","agentId":"<AGENT_ID>","conversationContext":"<ESCAPED_CONTEXT>"}'
 curl -s -X POST "${RUNTIME_API_BASE_URL:-http://localhost:3000}/api/internal/feedback" \
-  -H "x-internal-token: ${INTERNAL_API_TOKEN:-gw-secret-token}" \
+  -H "x-internal-token: ${SKILL_API_TOKEN:-gw-secret-token}" \
   -H "Content-Type: application/json" \
   -d "$PAYLOAD"
 ```

@@ -5,7 +5,7 @@ import { db } from "../db/index.js";
 import { bots } from "../db/schema/index.js";
 import { sendFeishuWebhook } from "../lib/feishu-webhook.js";
 import { logger } from "../lib/logger.js";
-import { requireInternalToken } from "../middleware/internal-auth.js";
+import { requireSkillToken } from "../middleware/internal-auth.js";
 import type { AppBindings } from "../types.js";
 
 const errorResponseSchema = z.object({
@@ -82,7 +82,7 @@ async function lookupBotOwner(agentId: string): Promise<{
 
 export function registerFeedbackRoutes(app: OpenAPIHono<AppBindings>) {
   app.openapi(postFeedbackRoute, async (c) => {
-    requireInternalToken(c);
+    requireSkillToken(c);
 
     const body = c.req.valid("json");
 
