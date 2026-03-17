@@ -212,7 +212,7 @@ jobs:
 
           echo "[r2] uploading to prefix: ${r2_prefix}/"
 
-          for file in apps/desktop/release/latest-mac.yml apps/desktop/release/*.zip; do
+          for file in apps/desktop/release/latest-mac.yml apps/desktop/release/*.dmg apps/desktop/release/*.zip; do
             [ -f "$file" ] || continue
             key="${r2_prefix}/$(basename "$file")"
             echo "Uploading $file → $key"
