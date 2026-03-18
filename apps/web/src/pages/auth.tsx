@@ -1,8 +1,7 @@
+import { BrandMark } from "@/components/brand-mark";
 import { authClient } from "@/lib/auth-client";
 import { identify, setUserId, track } from "@/lib/tracking";
 import "@/lib/api";
-import { BrandMark } from "@/components/brand-mark";
-import { BrandRail } from "@/components/brand-rail";
 import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,6 +12,16 @@ import {
   postApiV1AuthDesktopAuthorize,
   postApiV1MeAuthSource,
 } from "../../lib/api/sdk.gen";
+
+function getCapabilityPills(t: (key: string) => string) {
+  return [
+    { emoji: "\u{1F4BB}", label: t("auth.capability.code") },
+    { emoji: "\u{1F4CA}", label: t("auth.capability.data") },
+    { emoji: "\u270D\uFE0F", label: t("auth.capability.content") },
+    { emoji: "\u{1F50D}", label: t("auth.capability.research") },
+    { emoji: "\u2699\uFE0F", label: t("auth.capability.automation") },
+  ];
+}
 
 const OTP_LENGTH = 6;
 const OTP_SLOTS = Array.from({ length: OTP_LENGTH }, (_, i) => ({
@@ -89,6 +98,7 @@ export function AuthPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { data: session, isPending } = authClient.useSession();
+  const CAPABILITY_PILLS = getCapabilityPills(t);
   const isLogin = searchParams.get("mode") !== "signup";
   const isDesktopAuth = searchParams.get("desktop") === "1";
   const deviceId = searchParams.get("device_id");
@@ -451,7 +461,39 @@ export function AuthPage() {
   if (pendingVerification) {
     return (
       <div className="flex min-h-screen">
-        <BrandRail onLogoClick={() => navigate("/")} />
+        {/* Left panel — dark */}
+        <div className="hidden lg:flex w-[400px] shrink-0 bg-[#111111] flex-col justify-between p-8 relative overflow-hidden">
+          <div className="flex items-center gap-2.5">
+            <BrandMark className="w-7 h-7 shrink-0" />
+            <span className="text-[14px] font-semibold text-white/90">
+              Nexu
+            </span>
+          </div>
+          <div>
+            <h2 className="text-[32px] font-bold text-white leading-[1.15] mb-4">
+              {t("auth.heroTitle.line1")}
+              <br />
+              {t("auth.heroTitle.line2")}
+              <br />
+              {t("auth.heroTitle.line3")}
+            </h2>
+            <p className="text-[13px] text-white/45 leading-relaxed mb-6 max-w-[280px]">
+              {t("auth.heroBody")}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {CAPABILITY_PILLS.map((p) => (
+                <span
+                  key={p.label}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium bg-white/[0.07] text-white/60 border border-white/[0.06]"
+                >
+                  <span className="text-[11px]">{p.emoji}</span>
+                  {p.label}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="text-[11px] text-white/20">{t("auth.copyright")}</div>
+        </div>
 
         {/* Right panel — OTP form */}
         <div className="flex-1 flex flex-col bg-surface-0">
@@ -558,7 +600,46 @@ export function AuthPage() {
 
   return (
     <div className="flex min-h-screen">
-      <BrandRail onLogoClick={() => navigate("/")} />
+      {/* Left panel — dark */}
+      <div className="hidden lg:flex w-[400px] shrink-0 bg-[#111111] flex-col justify-between p-8 relative overflow-hidden">
+        {/* Logo */}
+        <div className="flex items-center gap-2.5">
+          <BrandMark className="w-7 h-7 shrink-0" />
+          <span className="text-[14px] font-semibold text-white/90">Nexu</span>
+        </div>
+
+        {/* Main copy */}
+        <div>
+          <h2 className="text-[32px] font-bold text-white leading-[1.15] mb-4">
+            Your digital
+            <br />
+            coworker,
+            <br />
+            always on.
+          </h2>
+          <p className="text-[13px] text-white/45 leading-relaxed mb-6 max-w-[280px]">
+            AI avatars that live in Slack — not just chatting, but delivering
+            real results. Build apps, analyze data, write content, run
+            automations.
+          </p>
+
+          {/* Capability pills */}
+          <div className="flex flex-wrap gap-2">
+            {CAPABILITY_PILLS.map((p) => (
+              <span
+                key={p.label}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium bg-white/[0.07] text-white/60 border border-white/[0.06]"
+              >
+                <span className="text-[11px]">{p.emoji}</span>
+                {p.label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="text-[11px] text-white/20">{t("auth.copyright")}</div>
+      </div>
 
       {/* Right panel — form */}
       <div className="flex-1 flex flex-col bg-surface-0">
