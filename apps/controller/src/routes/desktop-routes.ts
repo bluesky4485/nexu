@@ -11,7 +11,7 @@ const desktopReadyResponseSchema = z.object({
     ok: z.boolean(),
     status: z.number().nullable(),
   }),
-  status: z.enum(["active", "degraded", "unhealthy"]),
+  status: z.enum(["active", "starting", "degraded", "unhealthy"]),
 });
 
 const fallbackEventSchema = z.object({

@@ -175,6 +175,7 @@ function getChannelOptions(t: (key: string) => string) {
 function getChannelStatusMeta(
   status: ChannelLiveStatus | undefined,
   t: (key: string) => string,
+  lastError?: string | null,
 ): { colorClass: string; pulse: boolean; label: string } {
   switch (status) {
     case "connected":
@@ -195,12 +196,17 @@ function getChannelStatusMeta(
         pulse: true,
         label: t("home.channel.restarting"),
       };
-    case "error":
+    case "error": {
+      const errorKey = lastError ? `home.channel.errorDetail.${lastError}` : "";
+      const hasDetail = lastError && t(errorKey) !== errorKey;
       return {
-        colorClass: "bg-[var(--color-danger)]",
+        colorClass: hasDetail
+          ? "bg-[var(--color-warning)]"
+          : "bg-[var(--color-danger)]",
         pulse: false,
-        label: t("home.channel.error"),
+        label: hasDetail ? t(errorKey) : t("home.channel.error"),
       };
+    }
     default:
       return {
         colorClass: "bg-text-muted/40",
@@ -248,7 +254,6 @@ export function HomePage() {
 
   const runtimeDisplay = useMemo(() => {
     if (!runtimeData) {
-      // Still loading — show starting
       return {
         label: t("home.status.starting"),
         color: "var(--color-warning)",
@@ -261,6 +266,12 @@ export function HomePage() {
           label: t("home.running"),
           color: "var(--color-success)",
           pulse: false,
+        } as const;
+      case "starting":
+        return {
+          label: t("home.status.starting"),
+          color: "var(--color-warning)",
+          pulse: true,
         } as const;
       case "degraded":
         return {
@@ -300,6 +311,13 @@ export function HomePage() {
           subtitle: t("home.status.subtitle.idle"),
           color: "var(--color-success)",
           pulse: false,
+        } as const;
+      case "starting":
+        return {
+          label: t("home.status.starting"),
+          subtitle: t("home.status.subtitle.starting"),
+          color: "var(--color-warning)",
+          pulse: true,
         } as const;
       case "degraded":
         return {
@@ -394,6 +412,14 @@ export function HomePage() {
     queryKey: ["channels-live-status"],
     queryFn: async () => {
       const { data } = await getApiV1ChannelsLiveStatus();
+      console.log(
+        "[home:live-status]",
+        data?.gatewayConnected,
+        data?.channels?.map(
+          (c: { channelType: string; status: string }) =>
+            `${c.channelType}=${c.status}`,
+        ),
+      );
       return data as LiveStatusResponse | undefined;
     },
     refetchInterval: hasChannel ? 3000 : false,
@@ -754,6 +780,7 @@ export function HomePage() {
                     const statusMeta = getChannelStatusMeta(
                       statusEntry?.status,
                       t,
+                      statusEntry?.lastError,
                     );
                     const channelChatUrl = connectedChannel
                       ? getChannelChatUrl(

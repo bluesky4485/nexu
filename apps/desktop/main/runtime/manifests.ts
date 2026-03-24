@@ -159,7 +159,7 @@ export function buildSkillNodePath(
   );
 }
 
-function ensurePackagedOpenclawSidecar(
+export function ensurePackagedOpenclawSidecar(
   runtimeSidecarBaseRoot: string,
   runtimeRoot: string,
 ): string {

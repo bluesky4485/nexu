@@ -3,6 +3,7 @@ import { logger } from "../lib/logger.js";
 import type { AnalyticsService } from "../services/analytics-service.js";
 import type { OpenClawSyncService } from "../services/openclaw-sync-service.js";
 import type { OpenClawProcessManager } from "./openclaw-process.js";
+import type { OpenClawWsClient } from "./openclaw-ws-client.js";
 import type { RuntimeHealth } from "./runtime-health.js";
 import {
   type ControllerRuntimeState,
@@ -56,25 +57,40 @@ export function startHealthLoop(params: {
   state: ControllerRuntimeState;
   runtimeHealth: RuntimeHealth;
   processManager?: OpenClawProcessManager;
+  wsClient?: OpenClawWsClient;
 }): () => void {
   let stopped = false;
 
   const run = async () => {
     while (!stopped) {
+      const prevGateway = params.state.gatewayStatus;
       const checkedAt = new Date().toISOString();
       const result = await params.runtimeHealth.probe();
       params.state.lastGatewayProbeAt = checkedAt;
       if (result.ok) {
         params.state.gatewayStatus = "active";
         params.state.lastGatewayError = null;
+        // Gateway just became reachable — nudge WS client to connect now
+        // instead of waiting for the backoff timer.
+        if (prevGateway !== "active") {
+          params.wsClient?.retryNow();
+        }
+      } else if (result.status !== null) {
+        // Gateway responded but with an error status code
+        params.state.gatewayStatus = "degraded";
+        params.state.lastGatewayError = `http_${result.status}`;
       } else {
-        params.state.gatewayStatus =
-          result.status === null ? "unhealthy" : "degraded";
-        params.state.lastGatewayError =
-          result.status === null
-            ? "gateway_unreachable"
-            : `http_${result.status}`;
-        if (result.status === null) {
+        // Gateway unreachable — use bootPhase + process check to decide status.
+        // During boot, gateway not responding is expected ("starting").
+        // After boot, check if process is alive to distinguish starting vs dead.
+        const stillBooting = params.state.bootPhase === "booting";
+        const processAlive = params.processManager?.isAlive() ?? false;
+        if (stillBooting || processAlive) {
+          params.state.gatewayStatus = "starting";
+          params.state.lastGatewayError = "gateway_starting";
+        } else {
+          params.state.gatewayStatus = "unhealthy";
+          params.state.lastGatewayError = "gateway_unreachable";
           params.processManager?.restartForHealth();
         }
       }

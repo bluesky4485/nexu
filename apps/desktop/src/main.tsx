@@ -20,6 +20,7 @@ import type {
   RuntimeUnitState,
 } from "../shared/host";
 import { getDesktopSentryBuildMetadata } from "../shared/sentry-build-metadata";
+import { SurfaceFrame } from "./components/surface-frame";
 import { UpdateBanner } from "./components/update-banner";
 import { useAutoUpdate } from "./hooks/use-auto-update";
 import {
@@ -298,61 +299,7 @@ function getWebviewPreloadUrl(): string {
   ).href;
 }
 
-function SurfaceFrame({
-  title,
-  description,
-  src,
-  version,
-  preload,
-}: {
-  title: string;
-  description: string;
-  src: string | null;
-  version: number;
-  preload?: string;
-}) {
-  // React doesn't forward unknown attributes to custom elements like <webview>.
-  // We must set `preload` BEFORE `src` — otherwise the webview navigates without it.
-  // Use a ref callback to set both attributes in the correct order via DOM API.
-  const webviewRefCallback = useCallback(
-    (el: HTMLElement | null) => {
-      if (!el || !src) return;
-      if (preload) {
-        el.setAttribute("preload", preload);
-      }
-      el.setAttribute("src", src);
-    },
-    [preload, src],
-  );
-
-  return (
-    <section className="surface-frame">
-      <header className="surface-frame-header">
-        <div>
-          <span className="surface-frame-eyebrow">embedded surface</span>
-          <h2>{title}</h2>
-          <p>{description}</p>
-        </div>
-        <code>{src ?? "Resolving local runtime URL..."}</code>
-      </header>
-
-      {src ? (
-        <webview
-          ref={webviewRefCallback as React.Ref<HTMLWebViewElement>}
-          className="desktop-web-frame"
-          key={`${src}:${version}`}
-          // @ts-expect-error Electron webview boolean attribute — must be empty string, not boolean
-          allowpopups=""
-        />
-      ) : (
-        <div className="surface-frame-empty">
-          <div className="surface-frame-spinner" />
-          Starting local services…
-        </div>
-      )}
-    </section>
-  );
-}
+// SurfaceFrame is imported from the shared component — see components/surface-frame.tsx
 
 function RuntimeUnitCard({
   unit,
@@ -997,9 +944,7 @@ function DiagnosticsPage({
 
 function DesktopShell() {
   const isPackaged = window.nexuHost.bootstrap.isPackaged;
-  const [activeSurface, setActiveSurface] = useState<DesktopSurface>(
-    isPackaged ? "web" : "control",
-  );
+  const [activeSurface, setActiveSurface] = useState<DesktopSurface>("web");
   const [chromeMode, setChromeMode] = useState<DesktopChromeMode>(
     isPackaged ? "immersive" : "full",
   );

@@ -66,6 +66,17 @@ export class OpenClawProcessManager {
       this.eventListeners.delete(listener);
     };
   }
+  /**
+   * Check whether the managed OpenClaw process is currently alive.
+   * Returns true if a child process exists and its pid responds to signal 0.
+   */
+  isAlive(): boolean {
+    if (!this.child || this.child.killed || !this.child.pid) {
+      return false;
+    }
+    return this.isProcessAlive(this.child.pid);
+  }
+
   start(): void {
     if (!this.env.manageOpenclawProcess || this.child !== null) {
       return;

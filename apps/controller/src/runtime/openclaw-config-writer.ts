@@ -4,6 +4,53 @@ import type { OpenClawConfig } from "@nexu/shared";
 import type { ControllerEnv } from "../app/env.js";
 import { logger } from "../lib/logger.js";
 
+/**
+ * Sync weixin account IDs from openclaw.json to the openclaw-weixin plugin's
+ * index file. The plugin reads account list from this index file, not from
+ * the config, so we need to keep them in sync.
+ */
+async function syncWeixinAccountIndex(
+  openclawStateDir: string,
+  config: OpenClawConfig,
+): Promise<void> {
+  const weixinConfig = config.channels?.["openclaw-weixin"] as
+    | { accounts?: Record<string, unknown> }
+    | undefined;
+  const accountIds = weixinConfig?.accounts
+    ? Object.keys(weixinConfig.accounts)
+    : [];
+
+  const indexDir = path.join(openclawStateDir, "openclaw-weixin");
+  const indexPath = path.join(indexDir, "accounts.json");
+
+  // Read existing index to avoid unnecessary writes
+  let existingIds: string[] = [];
+  try {
+    const raw = await readFile(indexPath, "utf8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      existingIds = parsed.filter((id): id is string => typeof id === "string");
+    }
+  } catch {
+    // File doesn't exist or is invalid
+  }
+
+  // Merge: keep existing IDs and add new ones (don't remove - account data may still exist)
+  const mergedIds = [...new Set([...existingIds, ...accountIds])];
+
+  // Only write if changed
+  if (JSON.stringify(mergedIds) === JSON.stringify(existingIds)) {
+    return;
+  }
+
+  await mkdir(indexDir, { recursive: true });
+  await writeFile(indexPath, JSON.stringify(mergedIds, null, 2), "utf8");
+  logger.debug(
+    { indexPath, accountIds: mergedIds },
+    "weixin_account_index_synced",
+  );
+}
+
 export class OpenClawConfigWriter {
   /** Last successfully written content — used to skip redundant writes. */
   private lastWrittenContent: string | null = null;
@@ -51,6 +98,10 @@ export class OpenClawConfigWriter {
     );
     await writeFile(this.env.openclawConfigPath, content, "utf8");
     this.lastWrittenContent = content;
+
+    // Sync weixin account index for openclaw-weixin plugin compatibility
+    await syncWeixinAccountIndex(this.env.openclawStateDir, config);
+
     const configStat = await stat(this.env.openclawConfigPath);
     logger.info(
       {

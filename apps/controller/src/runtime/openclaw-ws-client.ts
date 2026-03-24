@@ -173,7 +173,7 @@ type Frame = RequestFrame | ResponseFrame | EventFrame;
 // ---------------------------------------------------------------------------
 
 const PROTOCOL_VERSION = 3;
-const MAX_BACKOFF_MS = 30_000;
+const MAX_BACKOFF_MS = 4_000;
 const REQUEST_TIMEOUT_MS = 15_000;
 
 interface Pending {
@@ -187,7 +187,7 @@ export class OpenClawWsClient {
   private pending = new Map<string, Pending>();
   private _connected = false;
   private closed = false;
-  private backoffMs = 1000;
+  private backoffMs = 500;
   private lastTick: number | null = null;
   private tickIntervalMs = 30_000;
   private tickTimer: NodeJS.Timeout | null = null;
@@ -342,7 +342,7 @@ export class OpenClawWsClient {
       const nonce = payload?.nonce;
       if (!nonce) {
         logger.error({}, "openclaw_ws_missing_nonce");
-        this.ws?.close(1008, "missing nonce");
+        this.ws?.close(4008, "missing nonce");
         return;
       }
       this.sendConnectRequest(nonce);
@@ -459,13 +459,13 @@ export class OpenClawWsClient {
     const timer = setTimeout(() => {
       this.pending.delete(id);
       logger.error({}, "openclaw_ws_connect_timeout");
-      this.ws?.close(1008, "connect timeout");
+      this.ws?.close(4008, "connect timeout");
     }, 10_000);
 
     this.pending.set(id, {
       resolve: (helloOk) => {
         this._connected = true;
-        this.backoffMs = 1000;
+        this.backoffMs = 500;
 
         const policy = (helloOk as Record<string, unknown>)?.policy as
           | { tickIntervalMs?: number }
@@ -490,7 +490,7 @@ export class OpenClawWsClient {
       },
       reject: (err) => {
         logger.error({ error: err.message }, "openclaw_ws_connect_failed");
-        this.ws?.close(1008, "connect failed");
+        this.ws?.close(4008, "connect failed");
       },
       timer,
     });
@@ -533,6 +533,21 @@ export class OpenClawWsClient {
       p.reject(new Error("openclaw gateway disconnected"));
     }
     this.pending.clear();
+  }
+
+  /**
+   * Cancel any pending reconnect timer and connect immediately.
+   * Called by the health loop when it detects the gateway is reachable.
+   */
+  retryNow(): void {
+    if (this.closed || this.ws) return;
+    if (this.connectTimer) {
+      clearTimeout(this.connectTimer);
+      this.connectTimer = null;
+    }
+    this.backoffMs = 500;
+    logger.info({}, "openclaw_ws_retry_now");
+    this.connect();
   }
 
   private scheduleReconnect(): void {

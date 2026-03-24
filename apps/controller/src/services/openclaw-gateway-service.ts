@@ -13,6 +13,7 @@ import { createHash } from "node:crypto";
 import type { OpenClawConfig } from "@nexu/shared";
 import { logger } from "../lib/logger.js";
 import type { OpenClawWsClient } from "../runtime/openclaw-ws-client.js";
+import type { ControllerRuntimeState } from "../runtime/state.js";
 
 // ---------------------------------------------------------------------------
 // Public types — channel status & readiness
@@ -101,7 +102,10 @@ export class OpenClawGatewayService {
   /** SHA-256 hash of the last config we successfully observed. */
   private lastPushedConfigHash: string | null = null;
 
-  constructor(private readonly wsClient: OpenClawWsClient) {}
+  constructor(
+    private readonly wsClient: OpenClawWsClient,
+    private readonly runtimeState: ControllerRuntimeState,
+  ) {}
 
   /** Whether the WS client has completed handshake and is ready for RPC. */
   isConnected(): boolean {
@@ -181,13 +185,20 @@ export class OpenClawGatewayService {
     channels: ChannelLiveStatusEntry[];
   }> {
     if (!this.wsClient.isConnected()) {
+      // During boot or when gateway is still starting, show "connecting"
+      // instead of "disconnected" so the UI doesn't flash a scary red state.
+      const startupStatus: ChannelLiveStatus =
+        this.runtimeState.bootPhase === "booting" ||
+        this.runtimeState.gatewayStatus === "starting"
+          ? "connecting"
+          : "disconnected";
       return {
         gatewayConnected: false,
         channels: channels.map((channel) => ({
           channelType: channel.channelType,
           channelId: channel.id,
           accountId: channel.accountId,
-          status: "disconnected",
+          status: startupStatus,
           ready: false,
           connected: false,
           running: false,
@@ -253,6 +264,16 @@ export class OpenClawGatewayService {
             : null;
           const lastError = rawLastError === "disabled" ? null : rawLastError;
 
+          // WeChat "not configured" typically means session expired — the
+          // plugin paused after errcode -14 and gateway sees the channel as
+          // unconfigured. Surface a friendlier error.
+          const friendlyError =
+            openclawChannelId === "openclaw-weixin" &&
+            lastError === "not configured" &&
+            !running
+              ? "session expired"
+              : lastError;
+
           // For channels like Feishu where `connected` is always false
           // (they use long-polling/WS to Feishu servers, not a direct
           // inbound connection), running + configured + no error means
@@ -288,7 +309,7 @@ export class OpenClawGatewayService {
             connected: enabled && connected,
             running: enabled && running,
             configured,
-            lastError,
+            lastError: friendlyError,
           };
         }),
       };
