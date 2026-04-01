@@ -464,22 +464,64 @@ export async function bootstrapWithLaunchd(
         `Stale session detected: previous Electron pid=${recovered.electronPid} is dead, ` +
           `metadata age=${Math.round(metadataAgeMs / 1000)}s. Cleaning up launchd services.`,
       );
-      await Promise.allSettled([
-        launchd.bootoutService(labels.controller),
-        launchd.bootoutService(labels.openclaw),
-      ]);
+      await bootoutServicesAndWait({
+        launchd,
+        labels,
+        controllerRunning: true,
+        openclawRunning: true,
+      });
       await deleteRuntimePorts(plistDir);
       recovered = null; // Force fresh start
     }
   }
-  const [controllerStatus, openclawStatus] = await Promise.all([
+  let [controllerStatus, openclawStatus] = await Promise.all([
     launchd.getServiceStatus(labels.controller),
     launchd.getServiceStatus(labels.openclaw),
   ]);
 
-  const controllerRunning = controllerStatus.status === "running";
-  const openclawRunning = openclawStatus.status === "running";
-  const anyRunning = controllerRunning || openclawRunning;
+  let controllerRunning = controllerStatus.status === "running";
+  let openclawRunning = openclawStatus.status === "running";
+  let anyRunning = controllerRunning || openclawRunning;
+
+  // Partial attach state is unsafe: one launchd service survived but the other
+  // did not. In practice this leaves controller attached to stale OpenClaw
+  // metadata, and OpenClaw may still exist as an orphaned process on the old
+  // gateway port. Tear everything down and force a clean cold start.
+  if (recovered && anyRunning && controllerRunning !== openclawRunning) {
+    console.warn(
+      `[bootstrap] partial launchd state detected (controller=${controllerRunning ? "running" : "stopped"} openclaw=${openclawRunning ? "running" : "stopped"}); forcing clean cold start`,
+    );
+
+    const staleOpenclawPort = recovered.openclawPort;
+    const staleOccupier = await detectPortOccupier(staleOpenclawPort);
+    if (staleOccupier && staleOccupier.pid !== openclawStatus.pid) {
+      console.warn(
+        `[bootstrap] stale openclaw port occupier detected port=${staleOpenclawPort} pid=${staleOccupier.pid}`,
+      );
+    }
+
+    await bootoutServicesAndWait({
+      launchd,
+      labels,
+      controllerRunning,
+      openclawRunning,
+    });
+
+    await killOrphanOpenclawProcesses({
+      registeredPid: openclawStatus.pid,
+      extraPids: staleOccupier ? [staleOccupier.pid] : [],
+    });
+    await deleteRuntimePorts(plistDir).catch(() => {});
+
+    recovered = null;
+    [controllerStatus, openclawStatus] = await Promise.all([
+      launchd.getServiceStatus(labels.controller),
+      launchd.getServiceStatus(labels.openclaw),
+    ]);
+    controllerRunning = controllerStatus.status === "running";
+    openclawRunning = openclawStatus.status === "running";
+    anyRunning = controllerRunning || openclawRunning;
+  }
 
   // If we have a previous session and at least one service is still running,
   // validate and reuse the recovered ports. Otherwise use fresh ports.
@@ -527,14 +569,12 @@ export async function bootstrapWithLaunchd(
       console.log(
         `[bootstrap] teardown: ${reason} (controller=${controllerRunning ? "running" : "stopped"} openclaw=${openclawRunning ? "running" : "stopped"})`,
       );
-      await Promise.allSettled([
-        controllerRunning
-          ? launchd.bootoutService(labels.controller)
-          : Promise.resolve(),
-        openclawRunning
-          ? launchd.bootoutService(labels.openclaw)
-          : Promise.resolve(),
-      ]);
+      await bootoutServicesAndWait({
+        launchd,
+        labels,
+        controllerRunning,
+        openclawRunning,
+      });
       await deleteRuntimePorts(plistDir).catch(() => {});
       // Fall through to fresh start below (useRecoveredPorts remains false)
     } else {
@@ -573,14 +613,12 @@ export async function bootstrapWithLaunchd(
         console.log(
           `NEXU_HOME mismatch (expected=${expectedNexuHome} actual=${runningNexuHome}), tearing down stale services`,
         );
-        await Promise.allSettled([
-          controllerRunning
-            ? launchd.bootoutService(labels.controller)
-            : Promise.resolve(),
-          openclawRunning
-            ? launchd.bootoutService(labels.openclaw)
-            : Promise.resolve(),
-        ]);
+        await bootoutServicesAndWait({
+          launchd,
+          labels,
+          controllerRunning,
+          openclawRunning,
+        });
       }
     } // end: version match — proceed with attach
   } else if (anyRunning && !recovered) {
@@ -590,14 +628,12 @@ export async function bootstrapWithLaunchd(
     console.log(
       `[bootstrap] teardown: no runtime-ports.json but services running (controller=${controllerRunning ? "running" : "stopped"} openclaw=${openclawRunning ? "running" : "stopped"})`,
     );
-    await Promise.allSettled([
-      controllerRunning
-        ? launchd.bootoutService(labels.controller)
-        : Promise.resolve(),
-      openclawRunning
-        ? launchd.bootoutService(labels.openclaw)
-        : Promise.resolve(),
-    ]);
+    await bootoutServicesAndWait({
+      launchd,
+      labels,
+      controllerRunning,
+      openclawRunning,
+    });
   }
 
   // --- Per-service: validate running ones, start missing ones ---
@@ -987,14 +1023,97 @@ async function killOrphanNexuProcesses(): Promise<void> {
  * Shared between killOrphanNexuProcesses and ensureNexuProcessesDead so
  * they agree on what constitutes a "Nexu process".
  */
-// Patterns must be specific enough to avoid matching unrelated processes
-// (e.g. an editor with the file open, or a grep searching for these paths).
-// Prefix with "node" to only match actual Node.js processes.
-const NEXU_PROCESS_PATTERNS = [
-  "node.*controller/dist/index.js",
-  "node.*openclaw.mjs gateway",
-  "openclaw-gateway",
-] as const;
+function escapeRegexLiteral(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getNexuProcessPatterns(): string[] {
+  const repoRoot = getWorkspaceRoot();
+  const nexuHome = path.join(os.homedir(), ".nexu");
+  const patterns = new Set<string>([
+    escapeRegexLiteral(
+      path.join(nexuHome, "runtime", "controller-sidecar", "dist", "index.js"),
+    ),
+    "\\.nexu/(runtime/)?openclaw-sidecar",
+    escapeRegexLiteral(
+      path.join(repoRoot, "apps", "controller", "dist", "index.js"),
+    ),
+    escapeRegexLiteral(
+      path.join(
+        repoRoot,
+        "openclaw-runtime",
+        "node_modules",
+        "openclaw",
+        "openclaw.mjs",
+      ),
+    ),
+    ...getNexuOpenclawProcessPatterns(),
+  ]);
+
+  if (process.resourcesPath) {
+    patterns.add(
+      escapeRegexLiteral(
+        path.join(
+          process.resourcesPath,
+          "runtime",
+          "controller",
+          "dist",
+          "index.js",
+        ),
+      ),
+    );
+  }
+
+  return Array.from(patterns);
+}
+
+function getNexuOpenclawProcessPatterns(): string[] {
+  const repoRoot = getWorkspaceRoot();
+  const patterns = new Set<string>([
+    "\\.nexu/(runtime/)?openclaw-sidecar",
+    "\\.nexu/(runtime/)?openclaw-sidecar/.*/openclaw-gateway",
+    escapeRegexLiteral(
+      path.join(
+        repoRoot,
+        "openclaw-runtime",
+        "node_modules",
+        "openclaw",
+        "openclaw.mjs",
+      ),
+    ),
+    escapeRegexLiteral(
+      path.join(repoRoot, "openclaw-runtime", "bin", "openclaw-gateway"),
+    ),
+  ]);
+
+  if (process.resourcesPath) {
+    patterns.add(
+      escapeRegexLiteral(
+        path.join(
+          process.resourcesPath,
+          "runtime",
+          "openclaw",
+          "node_modules",
+          "openclaw",
+          "openclaw.mjs",
+        ),
+      ),
+    );
+    patterns.add(
+      escapeRegexLiteral(
+        path.join(
+          process.resourcesPath,
+          "runtime",
+          "openclaw",
+          "bin",
+          "openclaw-gateway",
+        ),
+      ),
+    );
+  }
+
+  return Array.from(patterns);
+}
 
 /**
  * Collect the current process tree PIDs (current PID + all descendants) so
@@ -1087,7 +1206,8 @@ async function findNexuProcessPidsByLabel(): Promise<number[]> {
  *   tree (not just the current PID). Used by killOrphanNexuProcesses to
  *   avoid killing our own child processes. Default: false.
  */
-async function findNexuProcessPids(
+async function findProcessPidsByPatterns(
+  patterns: readonly string[],
   excludeProcessTree = false,
 ): Promise<number[]> {
   const allPids = new Set<number>();
@@ -1095,7 +1215,7 @@ async function findNexuProcessPids(
     ? await getCurrentProcessTreePids()
     : new Set([process.pid]);
 
-  for (const pattern of NEXU_PROCESS_PATTERNS) {
+  for (const pattern of patterns) {
     try {
       const { stdout } = await execFileAsync("pgrep", ["-f", pattern]);
       for (const line of stdout.trim().split("\n")) {
@@ -1110,6 +1230,63 @@ async function findNexuProcessPids(
   }
 
   return Array.from(allPids);
+}
+
+async function findNexuProcessPids(
+  excludeProcessTree = false,
+): Promise<number[]> {
+  return findProcessPidsByPatterns(
+    getNexuProcessPatterns(),
+    excludeProcessTree,
+  );
+}
+
+async function killOrphanOpenclawProcesses(opts: {
+  registeredPid?: number;
+  extraPids?: number[];
+}): Promise<number[]> {
+  const pids = await findProcessPidsByPatterns(
+    getNexuOpenclawProcessPatterns(),
+    true,
+  );
+  const candidatePids = new Set(pids);
+  for (const pid of opts.extraPids ?? []) {
+    if (pid > 0) {
+      candidatePids.add(pid);
+    }
+  }
+  const orphanPids = Array.from(candidatePids).filter(
+    (pid) => pid !== opts.registeredPid,
+  );
+
+  for (const pid of orphanPids) {
+    console.warn(`bootstrap: killing stale openclaw process pid=${pid}`);
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // ESRCH — already gone
+    }
+  }
+
+  return orphanPids;
+}
+
+async function bootoutServicesAndWait(opts: {
+  launchd: LaunchdManager;
+  labels: { controller: string; openclaw: string };
+  controllerRunning: boolean;
+  openclawRunning: boolean;
+  timeoutMs?: number;
+}): Promise<void> {
+  const timeoutMs = opts.timeoutMs ?? 5000;
+  await Promise.allSettled([
+    opts.controllerRunning
+      ? opts.launchd.bootoutAndWaitForExit(opts.labels.controller, timeoutMs)
+      : Promise.resolve(),
+    opts.openclawRunning
+      ? opts.launchd.bootoutAndWaitForExit(opts.labels.openclaw, timeoutMs)
+      : Promise.resolve(),
+  ]);
 }
 
 /**
