@@ -153,6 +153,13 @@ const orchestrator = new RuntimeOrchestrator(
 // setWindowOpenHandler and redirected to shell.openExternal, so this is safe.
 app.commandLine.appendSwitch("disable-popup-blocking");
 
+// Keep the renderer running at full speed when backgrounded — without
+// these, Chromium pauses the setup-animation video the moment the user
+// switches to another app, making the cold-start hand-off look broken.
+app.commandLine.appendSwitch("disable-background-timer-throttling");
+app.commandLine.appendSwitch("disable-renderer-backgrounding");
+app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
+
 const sentryDsn = runtimeConfig.sentryDsn;
 const embeddedWorkspaceTransparentCss = `
   html,
@@ -975,6 +982,8 @@ function createMainWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: false,
       webviewTag: true,
+      // Window-level backup for the disable-renderer-backgrounding flag.
+      backgroundThrottling: false,
     },
   });
 
