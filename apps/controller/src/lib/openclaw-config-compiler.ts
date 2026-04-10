@@ -269,6 +269,15 @@ function compilePlugins(
         .filter((pluginId): pluginId is string => pluginId !== null),
     ),
   ];
+  // Always-allow channel plugins whose extensions are bundled in every
+  // environment so connect/disconnect only mutates channel-level config
+  // and hot-reloads (~500ms) instead of changing plugins.allow which
+  // triggers a full gateway restart (~11s).
+  // "feishu" must be listed here because OpenClaw auto-enables it and
+  // writes it back to plugins.allow on disk; if controller's compiled
+  // config omits it, the next write creates a diff that triggers a
+  // gateway restart, and the cycle repeats.
+  const prewarmedChannelPluginIds = ["feishu", "openclaw-weixin"];
   const platformPluginIds = [
     "nexu-runtime-model",
     "nexu-credit-guard",
@@ -281,7 +290,11 @@ function compilePlugins(
   // output order, which OpenClaw treats as a config change and triggers
   // a SIGUSR1 restart + 11s gateway drain per reload.
   const allow = Array.from(
-    new Set([...connectedPluginIds, ...platformPluginIds]),
+    new Set([
+      ...connectedPluginIds,
+      ...prewarmedChannelPluginIds,
+      ...platformPluginIds,
+    ]),
   ).sort();
 
   return {
@@ -344,6 +357,7 @@ export function compileOpenClawConfig(
   installedSkillSlugs?: readonly string[],
   workspaceSkillsByAgent?: ReadonlyMap<string, readonly string[]>,
 ): OpenClawConfig {
+  const disableMdnsDiscovery = process.env.CI === "true";
   const activeBots = config.bots.filter((bot) => bot.status === "active");
   const firstBotModel = activeBots[0]?.modelId ?? null;
   const defaultModelId = resolveModelId(
@@ -356,6 +370,15 @@ export function compileOpenClawConfig(
   );
 
   const openClawConfig: OpenClawConfig = {
+    ...(disableMdnsDiscovery
+      ? {
+          discovery: {
+            mdns: {
+              mode: "off",
+            },
+          },
+        }
+      : {}),
     gateway: {
       port: env.openclawGatewayPort,
       mode: "local",
