@@ -4,8 +4,7 @@ on:
   pull_request:
     paths:
       - "apps/desktop/**"
-      - "openclaw-runtime/**"
-      - "openclaw-runtime-patches/**"
+      - "packages/slimclaw/**"
       - "pnpm-lock.yaml"
       - "scripts/desktop-check-dist.sh"
       - "scripts/desktop-verify-extracted-runner.sh"
@@ -17,8 +16,7 @@ on:
       - main
     paths:
       - "apps/desktop/**"
-      - "openclaw-runtime/**"
-      - "openclaw-runtime-patches/**"
+      - "packages/slimclaw/**"
       - "pnpm-lock.yaml"
       - "scripts/desktop-check-dist.sh"
       - "scripts/desktop-verify-extracted-runner.sh"
@@ -47,6 +45,10 @@ jobs:
   prepare-runtime:
     runs-on: macos-14
     timeout-minutes: 45
+    env:
+      LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+      LANGFUSE_BASE_URL: ${{ secrets.LANGFUSE_BASE_URL }}
 
     steps:
       - name: Checkout
@@ -68,7 +70,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: desktop-npm-cache-${{ runner.os }}-arm64-${{ hashFiles('openclaw-runtime/package-lock.json', 'apps/controller/static/runtime-plugins/openclaw-weixin/package-lock.json') }}
+          key: desktop-npm-cache-${{ runner.os }}-arm64-${{ hashFiles('packages/slimclaw/runtime-seed/package-lock.json', 'apps/controller/static/runtime-plugins/openclaw-weixin/package-lock.json') }}
           restore-keys: |
             desktop-npm-cache-${{ runner.os }}-arm64-
             desktop-npm-cache-${{ runner.os }}-
@@ -125,6 +127,9 @@ jobs:
     timeout-minutes: 45
     env:
       NEXU_DESKTOP_MAC_TARGETS: dmg zip
+      LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+      LANGFUSE_BASE_URL: ${{ secrets.LANGFUSE_BASE_URL }}
 
     steps:
       - name: Checkout
@@ -146,7 +151,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: desktop-npm-cache-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('openclaw-runtime/package-lock.json', 'apps/controller/static/runtime-plugins/openclaw-weixin/package-lock.json') }}
+          key: desktop-npm-cache-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('packages/slimclaw/runtime-seed/package-lock.json', 'apps/controller/static/runtime-plugins/openclaw-weixin/package-lock.json') }}
           restore-keys: |
             desktop-npm-cache-${{ runner.os }}-${{ matrix.arch }}-
             desktop-npm-cache-${{ runner.os }}-
@@ -298,6 +303,10 @@ jobs:
   package-windows:
     runs-on: windows-latest
     timeout-minutes: 45
+    env:
+      LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+      LANGFUSE_BASE_URL: ${{ secrets.LANGFUSE_BASE_URL }}
 
     steps:
       - name: Checkout
@@ -319,7 +328,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~\AppData\Local\npm-cache
-          key: desktop-npm-cache-${{ runner.os }}-x64-${{ hashFiles('openclaw-runtime/package-lock.json', 'apps/controller/static/runtime-plugins/openclaw-weixin/package-lock.json') }}
+          key: desktop-npm-cache-${{ runner.os }}-x64-${{ hashFiles('packages/slimclaw/runtime-seed/package-lock.json', 'apps/controller/static/runtime-plugins/openclaw-weixin/package-lock.json') }}
           restore-keys: |
             desktop-npm-cache-${{ runner.os }}-x64-
             desktop-npm-cache-${{ runner.os }}-

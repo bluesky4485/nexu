@@ -16,10 +16,10 @@ import {
   isMacDesktopPlatform,
   isWindowsDesktopPlatform,
 } from "@/lib/desktop-platform";
-import { resetAnalytics } from "@/lib/tracking";
+import { logoutToWelcome } from "@/lib/logout";
 import { normalizeChannel, track } from "@/lib/tracking";
 import { cn } from "@/lib/utils";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BookOpen,
   ChevronRight,
@@ -298,7 +298,7 @@ function UpdateFloatCard({
             </span>
           </div>
         </div>
-        {!updating && phase !== "ready" && (
+        {!updating && (
           <button
             type="button"
             onClick={onDismiss}
@@ -334,6 +334,13 @@ function UpdateFloatCard({
             className="rounded-[6px] px-2.5 py-1 text-[11px] font-medium bg-[var(--color-accent)] text-white hover:opacity-85 transition-opacity"
           >
             {t("layout.update.install")}
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded-[6px] px-2 py-1 text-[11px] font-medium text-text-muted hover:text-text-primary transition-colors"
+          >
+            {t("layout.update.later")}
           </button>
         </div>
       ) : (
@@ -385,6 +392,7 @@ function WorkspaceLayoutInner() {
   } = useDesktopRewardsStatus();
   const update = useAutoUpdate();
   const [updateDismissed, setUpdateDismissed] = useState(false);
+  const queryClient = useQueryClient();
   const hasUpdate =
     update.phase === "available" ||
     update.phase === "downloading" ||
@@ -572,9 +580,7 @@ function WorkspaceLayoutInner() {
   const handleLogout = async () => {
     setShowLogoutConfirm(false);
     track("workspace_logout_click");
-    resetAnalytics();
-    await authClient.signOut();
-    window.location.href = "/";
+    await logoutToWelcome({ queryClient });
   };
 
   const userEmail = me?.email ?? session?.user?.email ?? "";
@@ -652,7 +658,7 @@ function WorkspaceLayoutInner() {
   const desktopGlassTint = isWindowsDesktopClient
     ? "#ffffff"
     : "rgba(255, 255, 255, 0.08)";
-  const updateFloatWidth = Math.max(140, sidebarWidth - 20);
+  const updateFloatWidth = 288;
   const updateFloatLeft = 10;
   const updateFloatBottom = 52;
 
@@ -665,7 +671,7 @@ function WorkspaceLayoutInner() {
           : undefined
       }
     >
-      {isDesktopClient && hasUpdate && !updateDismissed && (
+      {!isDesktopClient && hasUpdate && !updateDismissed && (
         <UpdateFloatCard
           phase={update.phase}
           version={update.version}

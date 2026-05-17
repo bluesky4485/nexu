@@ -360,6 +360,10 @@ export function setUpdateManager(manager: UpdateManager | null): void {
   updateManager = manager;
 }
 
+export function getUpdateManager(): UpdateManager | null {
+  return updateManager;
+}
+
 export function setComponentUpdater(updater: ComponentUpdater): void {
   componentUpdater = updater;
 }
@@ -744,7 +748,7 @@ export function registerIpcHandlers(
           if (!updateManager) {
             return { updateAvailable: false };
           }
-          return updateManager.checkNow();
+          return updateManager.checkNow({ userInitiated: true });
         }
 
         case "update:get-capability": {
@@ -779,6 +783,13 @@ export function registerIpcHandlers(
 
         case "update:get-current-version": {
           return { version: app.getVersion() };
+        }
+
+        case "update:get-status": {
+          if (!updateManager) {
+            return { phase: "idle", version: null };
+          }
+          return updateManager.getStatus();
         }
 
         case "update:set-channel": {

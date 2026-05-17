@@ -14,7 +14,7 @@ import type { DesktopRuntimeConfig } from "../../shared/runtime-config";
 import { getWorkspaceRoot } from "../../shared/workspace-paths";
 import { resolveRuntimeManifestsRoots } from "../platforms/shared/runtime-roots";
 import { createAsyncArchiveSidecarMaterializer } from "../platforms/shared/sidecar-materializer";
-import { resolveWindowsPackagedOpenclawSidecarRoot } from "../platforms/win/openclaw-runtime-locator";
+import { resolveWindowsPackagedOpenclawSidecarRoot } from "../platforms/win/slimclaw-runtime-locator";
 import type { RuntimeUnitManifest } from "./types";
 
 function ensureDir(path: string): string {
@@ -379,6 +379,17 @@ export function createRuntimeUnitManifests(
   );
   const skillNodePath = buildSkillNodePath(electronRoot, isPackaged);
   const proxyEnv = buildChildProcessProxyEnv(runtimeConfig.proxy);
+  const langfuseEnv = {
+    ...(process.env.LANGFUSE_PUBLIC_KEY
+      ? { LANGFUSE_PUBLIC_KEY: process.env.LANGFUSE_PUBLIC_KEY }
+      : {}),
+    ...(process.env.LANGFUSE_SECRET_KEY
+      ? { LANGFUSE_SECRET_KEY: process.env.LANGFUSE_SECRET_KEY }
+      : {}),
+    ...(process.env.LANGFUSE_BASE_URL
+      ? { LANGFUSE_BASE_URL: process.env.LANGFUSE_BASE_URL }
+      : {}),
+  };
   const openclawSkillsDir = getOpenclawSkillsDir(userDataPath);
   const openclawMdnsHostname = "openclaw";
   const skillhubStaticSkillsDir = isPackaged
@@ -409,7 +420,7 @@ export function createRuntimeUnitManifests(
     args: [controllerEntryPath],
     cwd: controllerRoot,
     port: runtimeConfig.ports.controller,
-    startupTimeoutMs: 15_000,
+    startupTimeoutMs: 30_000,
     autoStart: false,
     logFilePath: path.resolve(logsDir, "controller.log"),
     dependents: ["web"],
@@ -458,6 +469,7 @@ export function createRuntimeUnitManifests(
       ...(runtimeConfig.posthogHost
         ? { POSTHOG_HOST: runtimeConfig.posthogHost }
         : {}),
+      ...langfuseEnv,
     },
   };
 
@@ -497,6 +509,7 @@ export function createRuntimeUnitManifests(
       OPENCLAW_MDNS_HOSTNAME: openclawMdnsHostname,
       ...(process.env.CI ? { OPENCLAW_DISABLE_BONJOUR: "1" } : {}),
       OPENCLAW_STATE_DIR: openclawStateDir,
+      ...langfuseEnv,
     },
   };
 

@@ -147,6 +147,8 @@ const enSidebar = [
   {
     text: "Help",
     items: [
+      { text: "Supported Registration Domains", link: "/guide/registration-email-domains" },
+      { text: "Windows Installation Guide", link: "/guide/windows-install" },
       { text: "Update Guide", link: "/guide/update" },
       { text: "Troubleshooting", link: "/guide/troubleshooting" },
     ],
@@ -155,6 +157,8 @@ const enSidebar = [
     text: "Community",
     items: [
       { text: "Contributing", link: "/guide/contributing" },
+      { text: "Good First Issue Contributor Guide", link: "/guide/first-pr" },
+      { text: "Contributor Rewards & Support", link: "/guide/contributor-rewards" },
       { text: "Contact Us", link: "/guide/contact" },
       { text: "Star Us on GitHub", link: "/guide/star" },
       { text: "Changelog", link: "https://github.com/nexu-io/nexu/releases" },
@@ -203,6 +207,8 @@ const jaSidebar = [
   {
     text: "ヘルプ",
     items: [
+      { text: "登録対応メールドメイン", link: "/ja/guide/registration-email-domains" },
+      { text: "Windows インストールガイド", link: "/ja/guide/windows-install" },
       { text: "アップデートガイド", link: "/ja/guide/update" },
       { text: "トラブルシューティング", link: "/ja/guide/troubleshooting" },
     ],
@@ -211,6 +217,8 @@ const jaSidebar = [
     text: "コミュニティ",
     items: [
       { text: "コントリビュート", link: "/ja/guide/contributing" },
+      { text: "Good First Issue コントリビューターガイド", link: "/ja/guide/first-pr" },
+      { text: "コントリビューター報酬＆サポート", link: "/ja/guide/contributor-rewards" },
       { text: "お問い合わせ", link: "/ja/guide/contact" },
       { text: "GitHub で Star", link: "/ja/guide/star" },
       { text: "更新ログ", link: "https://github.com/nexu-io/nexu/releases" },
@@ -260,6 +268,8 @@ const koSidebar = [
   {
     text: "도움말",
     items: [
+      { text: "회원가입 지원 이메일 도메인", link: "/ko/guide/registration-email-domains" },
+      { text: "Windows 설치 가이드", link: "/ko/guide/windows-install" },
       { text: "업데이트 가이드", link: "/ko/guide/update" },
       { text: "문제 해결", link: "/ko/guide/troubleshooting" },
     ],
@@ -268,6 +278,8 @@ const koSidebar = [
     text: "커뮤니티",
     items: [
       { text: "기여하기", link: "/ko/guide/contributing" },
+      { text: "Good First Issue 기여자 가이드", link: "/ko/guide/first-pr" },
+      { text: "기여자 보상 및 지원", link: "/ko/guide/contributor-rewards" },
       { text: "문의하기", link: "/ko/guide/contact" },
       { text: "GitHub에서 Star 하기", link: "/ko/guide/star" },
       { text: "변경 로그", link: "https://github.com/nexu-io/nexu/releases" },
@@ -318,7 +330,8 @@ const zhSidebar = [
   {
     text: "帮助",
     items: [
-      { text: "Windows 内测使用指南", link: "/zh/guide/windows-beta" },
+      { text: "注册支持的邮箱域名", link: "/zh/guide/registration-email-domains" },
+      { text: "Windows 正式版安装指南", link: "/zh/guide/windows-install" },
       { text: "更新指南", link: "/zh/guide/update" },
       { text: "修复指南", link: "/zh/guide/troubleshooting" },
     ],
@@ -327,6 +340,8 @@ const zhSidebar = [
     text: "社区",
     items: [
       { text: "参与贡献", link: "/zh/guide/contributing" },
+      { text: "Good First Issue 贡献者指南", link: "/zh/guide/first-pr" },
+      { text: "贡献奖励与支持", link: "/zh/guide/contributor-rewards" },
       { text: "联系我们", link: "/zh/guide/contact" },
       { text: "给我们 Star", link: "/zh/guide/star" },
       { text: "更新日志", link: "https://github.com/nexu-io/nexu/releases" },

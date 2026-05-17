@@ -1,4 +1,5 @@
 import { GitHubStarCta } from "@/components/github-star-cta";
+import { ModelPickerDropdown } from "@/components/model-picker-dropdown";
 import { ModelLogo, ProviderLogo } from "@/components/provider-logo";
 import { useAutoUpdate } from "@/hooks/use-auto-update";
 import {
@@ -7,13 +8,18 @@ import {
 } from "@/hooks/use-desktop-cloud-status";
 import { useGitHubStars } from "@/hooks/use-github-stars";
 import { useLocale } from "@/hooks/use-locale";
-import { authClient } from "@/lib/auth-client";
+import { getAnalyticsAppMetadata } from "@/lib/analytics-app-metadata";
 import {
   openExternalUrl,
   openLocalFolderUrl,
   pathToFileUrl,
 } from "@/lib/desktop-links";
-import { track } from "@/lib/tracking";
+import {
+  ANALYTICS_PREFERENCE_STORAGE_KEY,
+  disableAnalytics,
+  initializeAnalytics,
+  track,
+} from "@/lib/tracking";
 import { cn } from "@/lib/utils";
 import {
   type ProviderRegistryEntryDto,
@@ -28,7 +34,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowUpRight,
   Check,
-  ChevronDown,
   ExternalLink,
   FolderOpen,
   Globe,
@@ -49,14 +54,15 @@ import { toast } from "sonner";
 import {
   deleteApiV1ModelProvidersMinimaxOauthLogin,
   getApiInternalDesktopDefaultModel,
+  getApiInternalDesktopPreferences,
   getApiInternalDesktopReady,
-  getApiV1Me,
   getApiV1ModelProvidersByProviderIdOauthProviderStatus,
   getApiV1ModelProvidersByProviderIdOauthStatus,
   getApiV1ModelProvidersConfig,
   getApiV1ModelProvidersMinimaxOauthStatus,
   getApiV1ModelProvidersRegistry,
   getApiV1Models,
+  patchApiInternalDesktopPreferences,
   postApiInternalDesktopCloudConnect,
   postApiInternalDesktopCloudDisconnect,
   postApiInternalDesktopCloudRefresh,
@@ -73,6 +79,14 @@ import type {
   PutApiV1ModelProvidersConfigData,
 } from "../../lib/api/types.gen";
 import { Button } from "../components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
 import { PageHeader } from "../components/ui/page-header";
 import {
   Select,
@@ -132,6 +146,53 @@ type MiniMaxDesktopOauthStatus = {
   region?: "global" | "cn" | null;
   error?: string | null;
 };
+
+type LogoutConfirmDialogProps = {
+  open: boolean;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  pending: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+};
+
+function LogoutConfirmDialog({
+  open,
+  title,
+  description,
+  confirmLabel,
+  cancelLabel,
+  pending,
+  onOpenChange,
+  onConfirm,
+}: LogoutConfirmDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader className="border-b-0 pb-2">
+          <DialogTitle className="text-[16px]">{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="border-t-0 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={pending}
+          >
+            {cancelLabel}
+          </Button>
+          <Button type="button" variant="destructive" onClick={onConfirm}>
+            {pending && <Loader2 className="animate-spin" />}
+            {confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 type MiniMaxDesktopOauthStartResult = MiniMaxDesktopOauthStatus & {
   started: boolean;
@@ -308,6 +369,31 @@ function getProviderIdFromModelId(
   }
   const [provider] = modelId.split("/");
   return provider || null;
+}
+
+export function getSettingsProviderSelectionIdForModel(
+  providerIds: string[],
+  models: Array<{ id: string; provider: string }>,
+  modelId: string,
+): string | null {
+  const providerId = getProviderIdFromModelId(models, modelId);
+  if (!providerId) {
+    return null;
+  }
+
+  const normalizedProviderId = normalizeProviderId(providerId) ?? providerId;
+  if (providerIds.includes(providerId)) {
+    return providerId;
+  }
+  if (providerIds.includes(normalizedProviderId)) {
+    return normalizedProviderId;
+  }
+
+  return (
+    providerIds.find((candidateId) =>
+      getProviderAliasCandidates(candidateId).includes(providerId),
+    ) ?? normalizedProviderId
+  );
 }
 
 type SettingsTab = "general" | "providers";
@@ -539,10 +625,14 @@ function _GeneralSettings() {
   const update = useAutoUpdate();
   const queryClient = useQueryClient();
   const [appVersion, setAppVersion] = useState<string | null>(null);
-  const [analyticsEnabled, setAnalyticsEnabled] = useState(true);
+  const [accountConnecting, setAccountConnecting] = useState(false);
+  const [accountDisconnecting, setAccountDisconnecting] = useState(false);
+  const [showAccountLogoutConfirm, setShowAccountLogoutConfirm] =
+    useState(false);
   const [crashReportsEnabled, setCrashReportsEnabled] = useState(true);
   const hostBridge = getModelsHostInvokeBridge();
-  const { data: desktopCloudStatus } = useDesktopCloudStatus();
+  const { data: desktopCloudStatus, refetch: refetchDesktopCloudStatus } =
+    useDesktopCloudStatus();
   const isWindowsPlatform =
     typeof navigator !== "undefined" &&
     navigator.userAgent.toLowerCase().includes("windows");
@@ -552,14 +642,6 @@ function _GeneralSettings() {
   const showInShellHint = isWindowsPlatform
     ? t("settings.desktop.showInTaskbarHint")
     : t("settings.desktop.showInDockHint");
-
-  const { data: profile } = useQuery({
-    queryKey: ["me"],
-    queryFn: async () => {
-      const { data } = await getApiV1Me();
-      return data;
-    },
-  });
 
   const { data: shellPreferences } = useQuery({
     queryKey: ["desktop-shell-preferences"],
@@ -591,6 +673,56 @@ function _GeneralSettings() {
     },
   });
 
+  const { data: desktopPreferences } = useQuery({
+    queryKey: ["desktop-preferences"],
+    queryFn: async () => {
+      const { data } = await getApiInternalDesktopPreferences();
+      return data;
+    },
+  });
+
+  const updateDesktopPreferences = useMutation({
+    mutationFn: async (input: { analyticsEnabled: boolean }) => {
+      const response = await patchApiInternalDesktopPreferences({
+        body: { analyticsEnabled: input.analyticsEnabled },
+      });
+      if (!response.data) {
+        throw new Error("Desktop preferences update returned no data.");
+      }
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["desktop-preferences"], data);
+      try {
+        localStorage.setItem(
+          ANALYTICS_PREFERENCE_STORAGE_KEY,
+          data.analyticsEnabled ? "1" : "0",
+        );
+      } catch {
+        // ignore local persistence failures
+      }
+
+      if (data.analyticsEnabled) {
+        const posthogApiKey = import.meta.env.VITE_POSTHOG_API_KEY;
+        if (posthogApiKey) {
+          const { appName, appVersion } = getAnalyticsAppMetadata();
+          initializeAnalytics({
+            apiKey: posthogApiKey,
+            apiHost: import.meta.env.VITE_POSTHOG_HOST,
+            environment: import.meta.env.MODE,
+            appName,
+            appVersion,
+          });
+        }
+      } else {
+        disableAnalytics();
+      }
+    },
+    onError: () => {
+      toast.error(t("settings.desktop.updateFailed"));
+    },
+  });
+
   useEffect(() => {
     const hostBridge = getModelsHostInvokeBridge();
     if (!hostBridge) {
@@ -616,13 +748,10 @@ function _GeneralSettings() {
     };
   }, []);
 
-  const displayEmail = desktopCloudStatus?.userEmail ?? profile?.email ?? "—";
-  const initials = (
-    desktopCloudStatus?.userEmail?.[0] ??
-    profile?.email?.[0] ??
-    profile?.name?.[0] ??
-    "U"
-  ).toUpperCase();
+  const cloudConnected = desktopCloudStatus?.connected ?? false;
+  const displayEmail =
+    desktopCloudStatus?.userEmail?.trim() || t("settings.general.loggedOut");
+  const accountActionBusy = accountConnecting || accountDisconnecting;
   const updateAction = (() => {
     switch (update.phase) {
       case "checking":
@@ -693,9 +822,92 @@ function _GeneralSettings() {
         return appVersion ? null : t("settings.updates.versionUnknown");
     }
   })();
-  const handleLogout = async () => {
-    await authClient.signOut();
-    window.location.href = "/";
+
+  useEffect(() => {
+    if (!accountConnecting) {
+      return;
+    }
+
+    const interval = window.setInterval(async () => {
+      try {
+        const result = await refetchDesktopCloudStatus();
+        if (result.data?.connected) {
+          setAccountConnecting(false);
+          await syncDesktopCloudQueries(queryClient);
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 2000);
+
+    return () => window.clearInterval(interval);
+  }, [accountConnecting, queryClient, refetchDesktopCloudStatus]);
+
+  const handleAccountLogin = async () => {
+    if (accountActionBusy) {
+      return;
+    }
+
+    track("welcome_option_click", { option: "nexu_account" });
+    setAccountConnecting(true);
+
+    try {
+      let { data } = await postApiInternalDesktopCloudConnect({
+        body: { source: "settings" },
+      });
+
+      if (data?.error === "Already connected. Disconnect first.") {
+        await syncDesktopCloudQueries(queryClient);
+        setAccountConnecting(false);
+        return;
+      }
+
+      if (data?.error) {
+        await postApiInternalDesktopCloudDisconnect().catch(() => {});
+        ({ data } = await postApiInternalDesktopCloudConnect({
+          body: { source: "settings" },
+        }));
+      }
+
+      if (data?.error) {
+        toast.error(data.error ?? t("welcome.connectFailed"));
+        setAccountConnecting(false);
+        return;
+      }
+
+      if (data?.browserUrl) {
+        await openExternalUrl(data.browserUrl);
+        toast.info(t("welcome.browserOpened"));
+        return;
+      }
+
+      const result = await refetchDesktopCloudStatus();
+      if (result.data?.connected) {
+        await syncDesktopCloudQueries(queryClient);
+        setAccountConnecting(false);
+        return;
+      }
+
+      setAccountConnecting(false);
+    } catch {
+      toast.error(t("welcome.cloudConnectError"));
+      setAccountConnecting(false);
+    }
+  };
+
+  const handleAccountLogout = async () => {
+    if (accountActionBusy) {
+      return;
+    }
+
+    setAccountDisconnecting(true);
+    try {
+      await postApiInternalDesktopCloudDisconnect().catch(() => {});
+      await syncDesktopCloudQueries(queryClient);
+      setShowAccountLogoutConfirm(false);
+    } finally {
+      setAccountDisconnecting(false);
+    }
   };
 
   return (
@@ -710,37 +922,46 @@ function _GeneralSettings() {
           </div>
         </div>
         <div className="flex items-center justify-between gap-4 px-5 py-4">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-white text-[12px] font-semibold text-text-primary">
-              {profile?.image ? (
-                <img
-                  src={profile.image}
-                  alt={profile.name ?? profile.email ?? "User"}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                initials
-              )}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[12px] font-medium text-text-primary">
+              {displayEmail}
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[12px] font-medium text-text-primary">
-                {displayEmail}
-              </div>
-              <div className="mt-0.5 text-[11px] text-text-tertiary">
-                {t("settings.general.emailHint")}
-              </div>
+            <div className="mt-0.5 text-[11px] text-text-tertiary">
+              {cloudConnected
+                ? t("settings.general.emailHint")
+                : t("settings.general.loggedOutHint")}
             </div>
           </div>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => void handleLogout()}
+            disabled={accountActionBusy}
+            onClick={() =>
+              void (cloudConnected
+                ? setShowAccountLogoutConfirm(true)
+                : handleAccountLogin())
+            }
           >
-            {t("layout.signOut")}
+            {accountActionBusy
+              ? t("common.loading")
+              : cloudConnected
+                ? t("layout.signOut")
+                : t("settings.general.goLogin")}
           </Button>
         </div>
       </div>
+
+      <LogoutConfirmDialog
+        open={showAccountLogoutConfirm}
+        onOpenChange={setShowAccountLogoutConfirm}
+        pending={accountDisconnecting}
+        title={t("settings.general.logoutConfirmTitle")}
+        description={t("settings.general.logoutConfirmDescription")}
+        confirmLabel={t("layout.signOut")}
+        cancelLabel={t("common.cancel")}
+        onConfirm={() => void handleAccountLogout()}
+      />
 
       <div className="overflow-hidden rounded-xl border border-border bg-surface-1">
         <div className="border-b border-border px-5 py-4">
@@ -874,8 +1095,13 @@ function _GeneralSettings() {
               </div>
             </div>
             <Switch
-              checked={analyticsEnabled}
-              onCheckedChange={setAnalyticsEnabled}
+              checked={desktopPreferences?.analyticsEnabled ?? true}
+              disabled={updateDesktopPreferences.isPending}
+              onCheckedChange={(checked) => {
+                void updateDesktopPreferences.mutateAsync({
+                  analyticsEnabled: checked,
+                });
+              }}
             />
           </div>
 
@@ -1702,30 +1928,28 @@ export function ModelsPage() {
                     </div>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (activeProvider) {
-                      setSelectedProviderId(activeProvider.id);
+                <ModelPickerDropdown
+                  compact
+                  dropdownAlign="end"
+                  models={models}
+                  currentModelId={currentModelId}
+                  emptyLabel={t("models.noModelConfigured")}
+                  onSelectModel={(modelId) => {
+                    const providerId = getSettingsProviderSelectionIdForModel(
+                      sidebarItems.map((item) => item.id),
+                      models,
+                      modelId,
+                    );
+                    if (providerId) {
+                      setSelectedProviderId(providerId);
                     }
+                    clearSetupParam();
+                    updateModel.mutate(modelId);
                   }}
-                  className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface-0 px-3 py-1.5 text-[12px] font-medium text-text-primary"
-                >
-                  {activeProvider ? (
-                    <>
-                      <ProviderLogo
-                        provider={
-                          activeProvider.registryEntry?.id ?? activeProvider.id
-                        }
-                        size={14}
-                      />
-                      {activeProvider.name}
-                    </>
-                  ) : (
-                    t("models.selectProvider")
-                  )}
-                  <ChevronDown size={13} className="text-text-muted" />
-                </button>
+                  className="shrink-0"
+                  triggerClassName="min-w-[220px] justify-between"
+                  dropdownClassName="shadow-[0_12px_32px_rgba(0,0,0,0.12)]"
+                />
               </div>
             </div>
 
@@ -1968,6 +2192,7 @@ function ManagedProviderDetail({
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginBusy, setLoginBusy] = useState(false);
   const [cloudDisconnecting, setCloudDisconnecting] = useState(false);
+  const [showCloudLogoutConfirm, setShowCloudLogoutConfirm] = useState(false);
   const queryClient = useQueryClient();
   const { data: desktopCloudStatus, refetch: refetchDesktopCloudStatus } =
     useDesktopCloudStatus();
@@ -2055,6 +2280,20 @@ function ManagedProviderDetail({
     setLoginError(null);
   };
 
+  const handleCloudLogout = async () => {
+    if (cloudDisconnecting) {
+      return;
+    }
+    setCloudDisconnecting(true);
+    try {
+      await postApiInternalDesktopCloudDisconnect().catch(() => {});
+      await syncDesktopCloudQueries(queryClient);
+      setShowCloudLogoutConfirm(false);
+    } finally {
+      setCloudDisconnecting(false);
+    }
+  };
+
   const cloudToggleBusy = loginBusy || cloudDisconnecting;
 
   return (
@@ -2086,14 +2325,7 @@ function ManagedProviderDetail({
             }
             onClick={async () => {
               if (cloudConnected) {
-                if (cloudDisconnecting) return;
-                setCloudDisconnecting(true);
-                try {
-                  await postApiInternalDesktopCloudDisconnect().catch(() => {});
-                  await syncDesktopCloudQueries(queryClient);
-                } finally {
-                  setCloudDisconnecting(false);
-                }
+                setShowCloudLogoutConfirm(true);
               }
             }}
             className="inline-flex items-center gap-1.5 text-[11px] font-medium shrink-0 rounded-lg border border-border px-2.5 py-1 transition-colors cursor-pointer text-text-secondary hover:text-text-primary hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60"
@@ -2109,6 +2341,17 @@ function ManagedProviderDetail({
           </button>
         )}
       </div>
+
+      <LogoutConfirmDialog
+        open={showCloudLogoutConfirm}
+        onOpenChange={setShowCloudLogoutConfirm}
+        pending={cloudDisconnecting}
+        title={t("models.managed.logoutConfirmTitle")}
+        description={t("models.managed.logoutConfirmDescription")}
+        confirmLabel={t("models.managed.connected")}
+        cancelLabel={t("common.cancel")}
+        onConfirm={() => void handleCloudLogout()}
+      />
 
       {/* Login prompt */}
       {!cloudConnected && (

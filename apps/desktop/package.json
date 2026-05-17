@@ -1,6 +1,6 @@
 {
   "name": "@nexu/desktop",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@nexu/shared": "workspace:*",
+    "@nexu/slimclaw": "workspace:*",
     "@sentry/electron": "^7.10.0",
     "electron-updater": "^6.3.9",
     "pino": "^10.3.1",
@@ -126,6 +127,10 @@
       {
         "from": "build/icon.ico",
         "to": "tray-icon.ico"
+      },
+      {
+        "from": "build/tray-icon-mac.png",
+        "to": "tray-icon-mac.png"
       }
     ],
     "afterSign": "./scripts/notarize.cjs",
@@ -161,7 +166,7 @@
       "oneClick": false,
       "perMachine": false,
       "allowElevation": true,
-      "allowToChangeInstallationDirectory": true,
+      "allowToChangeInstallationDirectory": false,
       "include": "build/installer.nsh",
       "deleteAppDataOnUninstall": false,
       "artifactName": "nexu-setup-${version}-${arch}.${ext}"
